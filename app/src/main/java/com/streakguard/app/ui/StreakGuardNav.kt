@@ -2,9 +2,9 @@ package com.streakguard.app.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -26,8 +26,8 @@ import com.streakguard.app.ui.settings.SettingsScreen
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
 private val Tabs = listOf(
-    Tab("today", "Today", Icons.Filled.Today),
-    Tab("leetcode", "LeetCode", Icons.Filled.Code),
+    Tab("today", "Today", Icons.Filled.DateRange),
+    Tab("leetcode", "LeetCode", Icons.Filled.List),
     Tab("settings", "Settings", Icons.Filled.Settings),
 )
 

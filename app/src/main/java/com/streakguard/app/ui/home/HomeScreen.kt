@@ -16,9 +16,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -190,7 +190,7 @@ private fun StatusBanner(platform: PlatformUiState) {
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Icons.Filled.Whatshot,
+                        Icons.Filled.Star,
                         contentDescription = null,
                         tint = FigmaAccent,
                         modifier = Modifier.size(22.dp),
@@ -256,7 +256,7 @@ private fun StatusBanner(platform: PlatformUiState) {
                     )
                     Spacer(Modifier.width(6.dp))
                     Icon(
-                        Icons.Filled.OpenInNew,
+                        Icons.Filled.ArrowForward,
                         contentDescription = null,
                         modifier = Modifier.size(15.dp),
                     )
