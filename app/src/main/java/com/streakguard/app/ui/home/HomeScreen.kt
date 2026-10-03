@@ -1,6 +1,7 @@
 package com.streakguard.app.ui.home
 
 import android.content.Intent
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,7 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import com.streakguard.app.ui.theme.JetBrainsMonoFontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,28 +47,32 @@ import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.streakguard.app.di.AppContainer
 import com.streakguard.app.ui.components.AppHeader
-import com.streakguard.app.ui.theme.FigmaAccent
-import com.streakguard.app.ui.theme.FigmaAmber
-import com.streakguard.app.ui.theme.FigmaBackground
-import com.streakguard.app.ui.theme.FigmaCard
-import com.streakguard.app.ui.theme.FigmaCardInner
-import com.streakguard.app.ui.theme.FigmaDangerLight
-import com.streakguard.app.ui.theme.FigmaGreen
-import com.streakguard.app.ui.theme.FigmaOnAccent
-import com.streakguard.app.ui.theme.FigmaPill
-import com.streakguard.app.ui.theme.FigmaTextMuted
-import com.streakguard.app.ui.theme.FigmaTextPrimary
-import java.time.ZoneOffset
-import java.time.ZonedDateTime
+import com.streakguard.app.util.TimeUtils
+import com.streakguard.app.ui.theme.Primary
+import com.streakguard.app.ui.theme.Tertiary
+import com.streakguard.app.ui.theme.AppBackground
+import com.streakguard.app.ui.theme.CardBackground
+import com.streakguard.app.ui.theme.CardInnerBackground
+import com.streakguard.app.ui.theme.DangerLight
+import com.streakguard.app.ui.theme.Secondary
+import com.streakguard.app.ui.theme.OnPrimary
+import com.streakguard.app.ui.theme.PillBackground
+import com.streakguard.app.ui.theme.TextMuted
+import com.streakguard.app.ui.theme.TextPrimary
 import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(container: AppContainer) {
-    val vm: HomeViewModel = viewModel(factory = remember { HomeViewModel.Factory(container) })
+    // Shared with the LeetCode tab so both stay in sync.
+    val activity = LocalContext.current as ComponentActivity
+    val vm: HomeViewModel = viewModel(
+        viewModelStoreOwner = activity,
+        factory = remember { HomeViewModel.Factory(container) },
+    )
 
     Column(
         modifier = Modifier
-            .background(FigmaBackground)
+            .background(AppBackground)
             .padding(horizontal = 12.dp)
             .verticalScroll(rememberScrollState()),
     ) {
@@ -79,7 +84,7 @@ fun HomeScreen(container: AppContainer) {
         if (platforms.isEmpty()) {
             Text(
                 "Loading…",
-                color = FigmaTextMuted,
+                color = TextMuted,
                 modifier = Modifier.padding(vertical = 24.dp),
             )
         }
@@ -96,17 +101,17 @@ fun HomeScreen(container: AppContainer) {
                 .height(52.dp),
             shape = RoundedCornerShape(10.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = FigmaAccent,
-                contentColor = FigmaOnAccent,
-                disabledContainerColor = FigmaPill,
-                disabledContentColor = FigmaTextMuted,
+                containerColor = Primary,
+                contentColor = OnPrimary,
+                disabledContainerColor = PillBackground,
+                disabledContentColor = TextMuted,
             ),
         ) {
             if (vm.isChecking) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
                     strokeWidth = 2.dp,
-                    color = FigmaOnAccent,
+                    color = OnPrimary,
                 )
             } else {
                 Icon(Icons.Filled.Refresh, contentDescription = null)
@@ -114,7 +119,7 @@ fun HomeScreen(container: AppContainer) {
             Spacer(Modifier.width(8.dp))
             Text(
                 if (vm.isChecking) "CHECKING…" else "CHECK NOW",
-                fontFamily = FontFamily.Monospace,
+                fontFamily = JetBrainsMonoFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
                 letterSpacing = 0.8.sp,
@@ -123,11 +128,11 @@ fun HomeScreen(container: AppContainer) {
 
         vm.lastCheckedText?.let {
             Spacer(Modifier.height(12.dp))
-            Text(it, color = FigmaTextMuted, fontSize = 12.sp)
+            Text(it, color = TextMuted, fontSize = 12.sp)
         }
         vm.errorMessage?.let {
             Spacer(Modifier.height(8.dp))
-            Text(it, color = FigmaDangerLight, fontSize = 13.sp)
+            Text(it, color = DangerLight, fontSize = 13.sp)
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -143,10 +148,7 @@ private fun rememberUtcCountdown(): String {
             now = System.currentTimeMillis()
         }
     }
-    val midnight = ZonedDateTime.now(ZoneOffset.UTC)
-        .toLocalDate().plusDays(1).atStartOfDay(ZoneOffset.UTC)
-        .toInstant().toEpochMilli()
-    val diff = (midnight - now).coerceAtLeast(0)
+    val diff = (TimeUtils.nextUtcMidnightMillis() - now).coerceAtLeast(0)
     val h = diff / 3_600_000
     val m = (diff % 3_600_000) / 60_000
     val s = (diff % 60_000) / 1_000
@@ -159,22 +161,23 @@ private fun StatusBanner(platform: PlatformUiState) {
     val countdown = rememberUtcCountdown()
 
     val (pillText, pillColor) = when (platform.completed) {
-        true -> "SOLVED" to FigmaGreen
-        false -> "PENDING" to FigmaAmber
-        null -> "UNKNOWN" to FigmaTextMuted
+        true -> "SOLVED" to Secondary
+        false -> "PENDING" to Tertiary
+        null -> "UNKNOWN" to TextMuted
     }
+    val resetLocal = remember { TimeUtils.utcMidnightInLocalTime() }
     val inspectionLine = when {
         platform.username.isBlank() -> "Set a username to begin inspection"
         platform.challengeTitle == null -> "Not inspected yet — run a check"
-        platform.completed == true -> "Inspection: solved after 00:00 UTC"
-        platform.completed == false -> "Inspection: 0 AC after 00:00 UTC"
+        platform.completed == true -> "Inspection: solved after $resetLocal"
+        platform.completed == false -> "Inspection: 0 AC after $resetLocal"
         else -> "Inspection: unknown — last check failed"
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = FigmaCard),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -186,13 +189,13 @@ private fun StatusBanner(platform: PlatformUiState) {
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(FigmaCardInner),
+                        .background(CardInnerBackground),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Filled.Star,
                         contentDescription = null,
-                        tint = FigmaAccent,
+                        tint = Primary,
                         modifier = Modifier.size(22.dp),
                     )
                 }
@@ -203,15 +206,15 @@ private fun StatusBanner(platform: PlatformUiState) {
                     ) {
                         Text(
                             "${platform.displayName} Pipeline",
-                            color = FigmaTextPrimary,
+                            color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp,
                         )
-                        Surface(color = FigmaPill, shape = RoundedCornerShape(999.dp)) {
+                        Surface(color = PillBackground, shape = RoundedCornerShape(999.dp)) {
                             Text(
                                 pillText,
                                 color = pillColor,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = JetBrainsMonoFontFamily,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 10.sp,
                                 letterSpacing = 0.8.sp,
@@ -221,8 +224,8 @@ private fun StatusBanner(platform: PlatformUiState) {
                     }
                     Text(
                         inspectionLine,
-                        color = FigmaTextMuted,
-                        fontFamily = FontFamily.Monospace,
+                        color = TextMuted,
+                        fontFamily = JetBrainsMonoFontFamily,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(top = 2.dp),
                     )
@@ -242,14 +245,14 @@ private fun StatusBanner(platform: PlatformUiState) {
                     },
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.textButtonColors(
-                        containerColor = FigmaAccent,
-                        contentColor = FigmaOnAccent,
+                        containerColor = Primary,
+                        contentColor = OnPrimary,
                     ),
                     modifier = Modifier.height(38.dp),
                 ) {
                     Text(
                         "SOLVE NOW",
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = JetBrainsMonoFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                         letterSpacing = 0.8.sp,
@@ -270,22 +273,22 @@ private fun StatusBanner(platform: PlatformUiState) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(FigmaCardInner)
+                    .background(CardInnerBackground)
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     "DAY CLOSES IN",
-                    color = FigmaTextMuted,
-                    fontFamily = FontFamily.Monospace,
+                    color = TextMuted,
+                    fontFamily = JetBrainsMonoFontFamily,
                     fontSize = 11.sp,
                     letterSpacing = 1.sp,
                 )
                 Text(
                     countdown,
-                    color = FigmaTextPrimary,
-                    fontFamily = FontFamily.Monospace,
+                    color = TextPrimary,
+                    fontFamily = JetBrainsMonoFontFamily,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
                 )

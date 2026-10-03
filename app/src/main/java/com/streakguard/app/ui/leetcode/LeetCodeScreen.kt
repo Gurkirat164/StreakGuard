@@ -1,6 +1,7 @@
 package com.streakguard.app.ui.leetcode
 
 import android.content.Intent
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,9 +18,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,7 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import com.streakguard.app.ui.theme.JetBrainsMonoFontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,28 +43,34 @@ import com.streakguard.app.di.AppContainer
 import com.streakguard.app.ui.components.AppHeader
 import com.streakguard.app.ui.components.MonoCaption
 import com.streakguard.app.ui.home.HomeViewModel
-import com.streakguard.app.ui.theme.FigmaAccent
-import com.streakguard.app.ui.theme.FigmaAmber
-import com.streakguard.app.ui.theme.FigmaBackground
-import com.streakguard.app.ui.theme.FigmaCard
-import com.streakguard.app.ui.theme.FigmaGreen
-import com.streakguard.app.ui.theme.FigmaOnAccent
-import com.streakguard.app.ui.theme.FigmaTextMuted
-import com.streakguard.app.ui.theme.FigmaTextPrimary
-import com.streakguard.app.ui.theme.FigmaPill
+import com.streakguard.app.ui.theme.Primary
+import com.streakguard.app.ui.theme.Tertiary
+import com.streakguard.app.ui.theme.AppBackground
+import com.streakguard.app.ui.theme.CardBackground
+import com.streakguard.app.ui.theme.DangerLight
+import com.streakguard.app.ui.theme.Secondary
+import com.streakguard.app.ui.theme.OnPrimary
+import com.streakguard.app.ui.theme.TextMuted
+import com.streakguard.app.ui.theme.TextPrimary
+import com.streakguard.app.ui.theme.PillBackground
 
 /**
- * Platform detail tab. Shows only data the app already has: the configured
- * username, today's challenge and its check status. No new features.
+ * Platform detail tab. Shows the persisted check for today's UTC platform day
+ * (loaded on launch, no network) plus a manual refresh.
  */
 @Composable
 fun LeetCodeScreen(container: AppContainer) {
-    val vm: HomeViewModel = viewModel(factory = remember { HomeViewModel.Factory(container) })
+    // Same instance as the Today tab so both stay in sync.
+    val activity = LocalContext.current as ComponentActivity
+    val vm: HomeViewModel = viewModel(
+        viewModelStoreOwner = activity,
+        factory = remember { HomeViewModel.Factory(container) },
+    )
     val context = LocalContext.current
 
     Column(
         modifier = Modifier
-            .background(FigmaBackground)
+            .background(AppBackground)
             .padding(horizontal = 12.dp)
             .verticalScroll(rememberScrollState()),
     ) {
@@ -68,11 +78,53 @@ fun LeetCodeScreen(container: AppContainer) {
         AppHeader()
         Spacer(Modifier.height(16.dp))
 
+        Button(
+            onClick = { vm.checkNow() },
+            enabled = !vm.isChecking,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Primary,
+                contentColor = OnPrimary,
+                disabledContainerColor = PillBackground,
+                disabledContentColor = TextMuted,
+            ),
+        ) {
+            if (vm.isChecking) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = OnPrimary,
+                )
+            } else {
+                Icon(Icons.Filled.Refresh, contentDescription = null)
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                if (vm.isChecking) "CHECKING…" else "REFRESH STATUS",
+                fontFamily = JetBrainsMonoFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                letterSpacing = 0.8.sp,
+            )
+        }
+        vm.lastCheckedText?.let {
+            Spacer(Modifier.height(12.dp))
+            Text(it, color = TextMuted, fontSize = 12.sp)
+        }
+        vm.errorMessage?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, color = DangerLight, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(16.dp))
+
         vm.platforms.forEach { platform ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = FigmaCard),
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -85,20 +137,20 @@ fun LeetCodeScreen(container: AppContainer) {
                     ) {
                         Text(
                             platform.displayName,
-                            color = FigmaTextPrimary,
+                            color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp,
                         )
                         val (pillText, pillColor) = when (platform.completed) {
-                            true -> "SOLVED" to FigmaGreen
-                            false -> "PENDING" to FigmaAmber
-                            null -> "UNKNOWN" to FigmaTextMuted
+                            true -> "SOLVED" to Secondary
+                            false -> "PENDING" to Tertiary
+                            null -> "UNKNOWN" to TextMuted
                         }
-                        Surface(color = FigmaPill, shape = RoundedCornerShape(999.dp)) {
+                        Surface(color = PillBackground, shape = RoundedCornerShape(999.dp)) {
                             Text(
                                 pillText,
                                 color = pillColor,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = JetBrainsMonoFontFamily,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 10.sp,
                                 letterSpacing = 0.8.sp,
@@ -110,22 +162,22 @@ fun LeetCodeScreen(container: AppContainer) {
                     if (platform.username.isBlank()) {
                         Text(
                             "No username set — add it in Settings.",
-                            color = FigmaTextMuted,
+                            color = TextMuted,
                             fontSize = 13.sp,
                         )
                     } else {
                         Text(
                             "@${platform.username}",
-                            color = FigmaAmber,
-                            fontFamily = FontFamily.Monospace,
+                            color = Tertiary,
+                            fontFamily = JetBrainsMonoFontFamily,
                             fontSize = 13.sp,
                         )
                     }
 
                     MonoCaption("TODAY'S CHALLENGE")
                     Text(
-                        text = platform.challengeTitle ?: "Not checked yet — run a check from Today.",
-                        color = if (platform.challengeUrl != null) FigmaAccent else FigmaTextMuted,
+                        text = platform.challengeTitle ?: "Not checked yet — tap refresh above.",
+                        color = if (platform.challengeUrl != null) Primary else TextMuted,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.clickable(enabled = platform.challengeUrl != null) {
@@ -138,7 +190,7 @@ fun LeetCodeScreen(container: AppContainer) {
                     platform.streak?.let { streak ->
                         Text(
                             "Current streak: $streak days",
-                            color = FigmaTextMuted,
+                            color = TextMuted,
                             fontSize = 13.sp,
                         )
                     }
@@ -150,14 +202,14 @@ fun LeetCodeScreen(container: AppContainer) {
                         },
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.textButtonColors(
-                            containerColor = FigmaAccent,
-                            contentColor = FigmaOnAccent,
+                            containerColor = Primary,
+                            contentColor = OnPrimary,
                         ),
                         modifier = Modifier.height(40.dp),
                     ) {
                         Text(
                             "SOLVE NOW",
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = JetBrainsMonoFontFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
                             letterSpacing = 0.8.sp,

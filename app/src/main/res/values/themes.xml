@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Compose draws the whole UI; this theme only covers the window background at launch. -->
-    <style name="Theme.StreakGuard" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@android:color/white</item>
-        <item name="android:statusBarColor">@android:color/white</item>
+    <!-- Compose draws the whole UI; this theme only covers the window at launch
+         (cold-start background) and the system status bar. Both use the app's
+         neutral background so there is no white flash and no white status bar. -->
+    <style name="Theme.StreakGuard" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0B111E</item>
+        <item name="android:statusBarColor">#0B111E</item>
+        <item name="android:navigationBarColor">#0B111E</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

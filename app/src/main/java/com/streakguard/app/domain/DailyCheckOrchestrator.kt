@@ -6,9 +6,8 @@ import com.streakguard.app.data.local.CheckLog
 import com.streakguard.app.data.prefs.SettingsStore
 import com.streakguard.app.notify.NotificationHelper
 import com.streakguard.app.platform.PlatformRegistry
+import com.streakguard.app.util.TimeUtils
 import kotlinx.coroutines.flow.first
-import java.time.LocalDate
-import java.time.ZoneId
 
 /**
  * Runs the daily check for every enabled platform that has a username set:
@@ -36,7 +35,7 @@ class DailyCheckOrchestrator(
 
     suspend fun runCheck(manual: Boolean): List<PlatformStatus> {
         val confirmWhenDone = runCatching { settings.confirmWhenDone.first() }.getOrDefault(false)
-        val today = LocalDate.now(ZoneId.systemDefault()).toString()
+        val today = TimeUtils.utcToday()
         val results = mutableListOf<PlatformStatus>()
 
         for (platform in registry.platforms) {
@@ -67,8 +66,11 @@ class DailyCheckOrchestrator(
                         platformId = platform.id,
                         date = today,
                         completed = completed == true,
+                        known = completed != null,
                         checkedAtEpoch = System.currentTimeMillis(),
                         challengeTitle = challengeTitle,
+                        challengeUrl = challengeUrl,
+                        streak = streak,
                     )
                 )
             }.onFailure { Log.w(TAG, "Failed to log check for ${platform.id}", it) }

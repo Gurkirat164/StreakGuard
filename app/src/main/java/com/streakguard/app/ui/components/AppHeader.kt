@@ -17,20 +17,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontFamily
+import com.streakguard.app.ui.theme.JetBrainsMonoFontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.streakguard.app.ui.theme.FigmaAccent
-import com.streakguard.app.ui.theme.FigmaAmber
-import com.streakguard.app.ui.theme.FigmaCardInner
-import com.streakguard.app.ui.theme.FigmaPill
-import com.streakguard.app.ui.theme.FigmaTextMuted
-import com.streakguard.app.ui.theme.FigmaTextPrimary
+import com.streakguard.app.ui.theme.Primary
+import com.streakguard.app.ui.theme.Tertiary
+import com.streakguard.app.ui.theme.CardInnerBackground
+import com.streakguard.app.ui.theme.PillBackground
+import com.streakguard.app.ui.theme.TextMuted
+import com.streakguard.app.ui.theme.TextPrimary
 
 /**
- * App header from the Figma design: flame mark, "StreakGuard" wordmark and the
- * version badge.
+ * App header: flame mark, "StreakGuard" wordmark and the version badge.
  */
 @Composable
 fun AppHeader(modifier: Modifier = Modifier) {
@@ -43,31 +42,31 @@ fun AppHeader(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(FigmaCardInner),
+                .background(CardInnerBackground),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 Icons.Filled.Star,
                 contentDescription = "StreakGuard",
-                tint = FigmaAccent,
+                tint = Primary,
                 modifier = Modifier.size(26.dp),
             )
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 "StreakGuard",
-                color = FigmaTextPrimary,
+                color = TextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
             )
             Surface(
-                color = FigmaPill,
+                color = PillBackground,
                 shape = RoundedCornerShape(999.dp),
             ) {
                 Text(
-                    "v0.1.0 PRE-RELEASE",
-                    color = FigmaAmber,
-                    fontFamily = FontFamily.Monospace,
+                    "v0.2.0",
+                    color = Tertiary,
+                    fontFamily = JetBrainsMonoFontFamily,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 10.sp,
                     letterSpacing = 0.8.sp,
@@ -84,8 +83,8 @@ fun MonoCaption(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         modifier = modifier,
-        color = FigmaTextMuted,
-        fontFamily = FontFamily.Monospace,
+        color = TextMuted,
+        fontFamily = JetBrainsMonoFontFamily,
         fontSize = 11.sp,
         letterSpacing = 0.8.sp,
     )

@@ -44,7 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import com.streakguard.app.ui.theme.JetBrainsMonoFontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,17 +53,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.streakguard.app.di.AppContainer
 import com.streakguard.app.ui.components.AppHeader
 import com.streakguard.app.ui.components.MonoCaption
-import com.streakguard.app.ui.theme.FigmaAccent
-import com.streakguard.app.ui.theme.FigmaAmber
-import com.streakguard.app.ui.theme.FigmaBackground
-import com.streakguard.app.ui.theme.FigmaCard
-import com.streakguard.app.ui.theme.FigmaCardInner
-import com.streakguard.app.ui.theme.FigmaDangerLight
-import com.streakguard.app.ui.theme.FigmaGreen
-import com.streakguard.app.ui.theme.FigmaOnAccent
-import com.streakguard.app.ui.theme.FigmaPill
-import com.streakguard.app.ui.theme.FigmaTextMuted
-import com.streakguard.app.ui.theme.FigmaTextPrimary
+import com.streakguard.app.ui.theme.Primary
+import com.streakguard.app.ui.theme.Tertiary
+import com.streakguard.app.ui.theme.AppBackground
+import com.streakguard.app.ui.theme.CardBackground
+import com.streakguard.app.ui.theme.CardInnerBackground
+import com.streakguard.app.ui.theme.DangerLight
+import com.streakguard.app.ui.theme.Secondary
+import com.streakguard.app.ui.theme.OnPrimary
+import com.streakguard.app.ui.theme.PillBackground
+import com.streakguard.app.ui.theme.TextMuted
+import com.streakguard.app.ui.theme.TextPrimary
 
 @Composable
 fun SettingsScreen(container: AppContainer) {
@@ -110,7 +110,7 @@ fun SettingsScreen(container: AppContainer) {
 
     Column(
         modifier = Modifier
-            .background(FigmaBackground)
+            .background(AppBackground)
             .padding(horizontal = 12.dp)
             .verticalScroll(rememberScrollState()),
     ) {
@@ -122,7 +122,7 @@ fun SettingsScreen(container: AppContainer) {
         SettingsCard(title = "Target Identity", caption = "LOCAL STORAGE") {
             Text(
                 "Change the target public handle checked by your device. No cookies or auth tokens are transmitted.",
-                color = FigmaTextMuted,
+                color = TextMuted,
                 fontSize = 13.sp,
             )
             vm.platforms.forEach { platform ->
@@ -133,7 +133,7 @@ fun SettingsScreen(container: AppContainer) {
                 ) {
                     Text(
                         platform.displayName,
-                        color = FigmaTextPrimary,
+                        color = TextPrimary,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
                     )
@@ -141,8 +141,8 @@ fun SettingsScreen(container: AppContainer) {
                         checked = platform.enabled,
                         onCheckedChange = { vm.onEnabledChange(platform.platformId, it) },
                         colors = SwitchDefaults.colors(
-                            checkedTrackColor = FigmaAccent,
-                            checkedThumbColor = FigmaOnAccent,
+                            checkedTrackColor = Primary,
+                            checkedThumbColor = OnPrimary,
                         ),
                     )
                 }
@@ -150,21 +150,21 @@ fun SettingsScreen(container: AppContainer) {
                     value = platform.username,
                     onValueChange = { vm.onUsernameChange(platform.platformId, it) },
                     label = { Text("Username") },
-                    prefix = { Text("@", color = FigmaAmber) },
+                    prefix = { Text("@", color = Tertiary) },
                     singleLine = true,
                     enabled = platform.enabled,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = FigmaTextPrimary,
-                        unfocusedTextColor = FigmaTextPrimary,
-                        disabledTextColor = FigmaTextMuted,
-                        focusedLabelColor = FigmaAmber,
-                        unfocusedLabelColor = FigmaTextMuted,
-                        focusedBorderColor = FigmaAccent,
-                        unfocusedBorderColor = FigmaPill,
-                        disabledBorderColor = FigmaCardInner,
-                        cursorColor = FigmaAccent,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        disabledTextColor = TextMuted,
+                        focusedLabelColor = Tertiary,
+                        unfocusedLabelColor = TextMuted,
+                        focusedBorderColor = Primary,
+                        unfocusedBorderColor = PillBackground,
+                        disabledBorderColor = CardInnerBackground,
+                        cursorColor = Primary,
                     ),
                 )
             }
@@ -177,8 +177,8 @@ fun SettingsScreen(container: AppContainer) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "%02d:%02d".format(vm.checkHour, vm.checkMinute),
-                    color = FigmaTextPrimary,
-                    fontFamily = FontFamily.Monospace,
+                    color = TextPrimary,
+                    fontFamily = JetBrainsMonoFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 28.sp,
                     modifier = Modifier.weight(1f),
@@ -187,12 +187,12 @@ fun SettingsScreen(container: AppContainer) {
                     onClick = { showTimePicker = true },
                     shape = RoundedCornerShape(8.dp),
                 ) {
-                    Text("Change", color = FigmaAmber)
+                    Text("Change", color = Tertiary)
                 }
             }
             Text(
                 "You'll be notified at this time if today's challenge isn't done yet.",
-                color = FigmaTextMuted,
+                color = TextMuted,
                 fontSize = 13.sp,
             )
         }
@@ -203,10 +203,10 @@ fun SettingsScreen(container: AppContainer) {
         SettingsCard(title = "Notifications", caption = "PREFERENCES") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Confirm when done", color = FigmaTextPrimary, fontSize = 14.sp)
+                    Text("Confirm when done", color = TextPrimary, fontSize = 14.sp)
                     Text(
                         "Also send a notification when the challenge is already done.",
-                        color = FigmaTextMuted,
+                        color = TextMuted,
                         fontSize = 13.sp,
                     )
                 }
@@ -214,8 +214,8 @@ fun SettingsScreen(container: AppContainer) {
                     checked = vm.confirmWhenDone,
                     onCheckedChange = { vm.onConfirmWhenDoneChange(it) },
                     colors = SwitchDefaults.colors(
-                        checkedTrackColor = FigmaAccent,
-                        checkedThumbColor = FigmaOnAccent,
+                        checkedTrackColor = Primary,
+                        checkedThumbColor = OnPrimary,
                     ),
                 )
             }
@@ -230,13 +230,13 @@ fun SettingsScreen(container: AppContainer) {
                 .height(52.dp),
             shape = RoundedCornerShape(10.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = FigmaAccent,
-                contentColor = FigmaOnAccent,
+                containerColor = Primary,
+                contentColor = OnPrimary,
             ),
         ) {
             Text(
                 "SAVE",
-                fontFamily = FontFamily.Monospace,
+                fontFamily = JetBrainsMonoFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
                 letterSpacing = 0.8.sp,
@@ -244,7 +244,7 @@ fun SettingsScreen(container: AppContainer) {
         }
         vm.savedMessage?.let {
             Spacer(Modifier.height(8.dp))
-            Text(it, color = FigmaGreen, fontSize = 13.sp)
+            Text(it, color = Secondary, fontSize = 13.sp)
         }
 
         Spacer(Modifier.height(16.dp))
@@ -252,7 +252,7 @@ fun SettingsScreen(container: AppContainer) {
         // --- Permissions ---
         Text(
             "Permissions",
-            color = FigmaTextPrimary,
+            color = TextPrimary,
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
             modifier = Modifier.padding(horizontal = 4.dp),
@@ -263,7 +263,7 @@ fun SettingsScreen(container: AppContainer) {
             SettingsCard(title = "Notifications are off", caption = "PERMISSION") {
                 Text(
                     "StreakGuard needs notification permission to remind you.",
-                    color = FigmaTextMuted,
+                    color = TextMuted,
                     fontSize = 13.sp,
                 )
                 TextButton(onClick = {
@@ -271,7 +271,7 @@ fun SettingsScreen(container: AppContainer) {
                         notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     }
                 }) {
-                    Text("GRANT", color = FigmaAmber, fontFamily = FontFamily.Monospace)
+                    Text("GRANT", color = Tertiary, fontFamily = JetBrainsMonoFontFamily)
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -283,7 +283,7 @@ fun SettingsScreen(container: AppContainer) {
             SettingsCard(title = "Exact alarms not allowed", caption = "PERMISSION") {
                 Text(
                     "Without this, the daily check may not fire at your exact set time.",
-                    color = FigmaTextMuted,
+                    color = TextMuted,
                     fontSize = 13.sp,
                 )
                 TextButton(onClick = {
@@ -292,7 +292,7 @@ fun SettingsScreen(container: AppContainer) {
                     }
                     context.startActivity(intent)
                 }) {
-                    Text("ALLOW", color = FigmaAmber, fontFamily = FontFamily.Monospace)
+                    Text("ALLOW", color = Tertiary, fontFamily = JetBrainsMonoFontFamily)
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -303,9 +303,9 @@ fun SettingsScreen(container: AppContainer) {
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp),
         ) {
-            Icon(Icons.Filled.Notifications, contentDescription = null, tint = FigmaAmber)
+            Icon(Icons.Filled.Notifications, contentDescription = null, tint = Tertiary)
             Spacer(Modifier.width(8.dp))
-            Text("Send test notification", color = FigmaTextPrimary)
+            Text("Send test notification", color = TextPrimary)
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -320,7 +320,7 @@ private fun SettingsCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = FigmaCard),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -329,7 +329,7 @@ private fun SettingsCard(
             MonoCaption(caption)
             Text(
                 title,
-                color = FigmaTextPrimary,
+                color = TextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
             )

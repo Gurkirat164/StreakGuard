@@ -7,11 +7,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.streakguard.app.di.AppContainer
+import com.streakguard.app.util.TimeUtils
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 data class PlatformUiState(
     val platformId: String,
@@ -26,6 +24,11 @@ data class PlatformUiState(
 
 /**
  * Plain ViewModel (no DI framework): takes the [AppContainer] via a simple factory.
+ *
+ * On launch it shows the last persisted check for today's UTC platform day —
+ * no network call. A fresh check only happens via [checkNow] (manual) or the
+ * scheduled daily alarm, which is what keeps the data from resetting between
+ * app restarts.
  */
 class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -39,24 +42,33 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         private set
 
     init {
-        viewModelScope.launch { loadShells() }
+        viewModelScope.launch { loadFromCache() }
     }
 
-    /** Load platform rows with usernames but no check results yet. */
-    private suspend fun loadShells() {
+    /** Load the persisted check for today's UTC day; no network involved. */
+    private suspend fun loadFromCache() {
+        val todayUtc = TimeUtils.utcToday()
+        var latestEpoch: Long? = null
         platforms = container.platformRegistry.platforms.map { platform ->
             val username = runCatching { container.settingsStore.username(platform.id).first() }
                 .getOrDefault("")
+            val cached = runCatching {
+                container.database.checkLogDao().getForDate(platform.id, todayUtc)
+            }.getOrNull()
+            cached?.checkedAtEpoch?.let { epoch ->
+                if (latestEpoch == null || epoch > latestEpoch!!) latestEpoch = epoch
+            }
             PlatformUiState(
                 platformId = platform.id,
                 displayName = platform.displayName,
                 username = username,
-                challengeTitle = null,
-                challengeUrl = null,
-                completed = null,
-                streak = null,
+                challengeTitle = cached?.challengeTitle,
+                challengeUrl = cached?.challengeUrl,
+                completed = cached?.let { if (it.known) it.completed else null },
+                streak = cached?.streak,
             )
         }
+        lastCheckedText = latestEpoch?.let { "Last checked " + TimeUtils.formatLocalTime(it) }
     }
 
     fun checkNow() {
@@ -65,24 +77,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             isChecking = true
             errorMessage = null
             try {
-                loadShells()
                 val results = container.checkOrchestrator.runCheck(manual = true)
-                platforms = results.map { result ->
-                    val username = platforms
-                        .firstOrNull { it.platformId == result.platformId }
-                        ?.username ?: ""
-                    PlatformUiState(
-                        platformId = result.platformId,
-                        displayName = result.displayName,
-                        username = username,
-                        challengeTitle = result.challengeTitle,
-                        challengeUrl = result.challengeUrl,
-                        completed = result.completed,
-                        streak = result.streak,
-                    )
-                }
-                lastCheckedText = "Last checked " +
-                    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                // Re-read what was just persisted: single source of truth.
+                loadFromCache()
                 when {
                     results.isEmpty() ->
                         errorMessage = "Add your username in Settings to start checking."
