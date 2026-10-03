@@ -36,6 +36,13 @@ object TimeUtils {
             .toInstant()
             .toEpochMilli()
 
+    /** Fraction of the current UTC day that has elapsed, 0..1. */
+    fun utcDayProgress(): Float {
+        val start = startOfUtcDayMillis()
+        val now = System.currentTimeMillis()
+        return ((now - start).coerceAtLeast(0) / 86_400_000f).coerceIn(0f, 1f)
+    }
+
     private val localTimeFormat = DateTimeFormatter.ofPattern("HH:mm")
     private val localTimeWithZoneFormat = DateTimeFormatter.ofPattern("HH:mm z")
 
