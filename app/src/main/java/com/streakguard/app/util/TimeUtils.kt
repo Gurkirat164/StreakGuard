@@ -53,6 +53,6 @@ object TimeUtils {
         LocalDate.now(ZoneOffset.UTC)
             .plusDays(1)
             .atStartOfDay(ZoneOffset.UTC)
-            .atZone(ZoneId.systemDefault())
+            .withZoneSameInstant(ZoneId.systemDefault())
             .format(localTimeWithZoneFormat)
 }
