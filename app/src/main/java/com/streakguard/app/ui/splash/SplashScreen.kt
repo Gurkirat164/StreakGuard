@@ -1,5 +1,6 @@
 package com.streakguard.app.ui.splash
 
+import android.os.SystemClock
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
@@ -62,6 +63,7 @@ fun AnimatedSplashScreen(
     var fireGrown by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
     var done by remember { mutableStateOf(false) }
+    val startTime = remember { SystemClock.uptimeMillis() }
 
     // Stage 1: logo fades in.
     LaunchedEffect(Unit) {
@@ -88,6 +90,10 @@ fun AnimatedSplashScreen(
                 targetValue = 1f,
                 animationSpec = tween(durationMillis = 350, easing = LinearEasing),
             ) { value, _ -> progress = value }
+            // Guarantee the staged animation is actually seen: never exit
+            // before the minimum display time has elapsed.
+            val elapsed = SystemClock.uptimeMillis() - startTime
+            delay((SPLASH_MIN_MILLIS - elapsed).coerceAtLeast(0))
             delay(250)
             done = true
             onDone()
@@ -189,4 +195,5 @@ fun AnimatedSplashScreen(
     }
 }
 
+private const val SPLASH_MIN_MILLIS = 2_000L
 private const val SPLASH_MAX_MILLIS = 8_000L

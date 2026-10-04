@@ -20,6 +20,9 @@ class AppContainer(context: Context) {
 
     private val appContext = context.applicationContext
 
+    /** Application context for APIs that need it (e.g. device locale/format). */
+    fun appContext(): android.content.Context = appContext
+
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .callTimeout(30, TimeUnit.SECONDS)

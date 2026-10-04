@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -17,11 +15,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import com.streakguard.app.R
 import com.streakguard.app.ui.theme.JetBrainsMonoFontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.streakguard.app.ui.theme.Primary
 import com.streakguard.app.ui.theme.Tertiary
 import com.streakguard.app.ui.theme.CardInnerBackground
 import com.streakguard.app.ui.theme.PillBackground
@@ -46,10 +46,10 @@ fun AppHeader(modifier: Modifier = Modifier) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                Icons.Filled.Star,
+                painter = painterResource(R.drawable.ic_flame),
                 contentDescription = "StreakGuard",
-                tint = Primary,
-                modifier = Modifier.size(26.dp),
+                tint = Color.Unspecified,
+                modifier = Modifier.size(26.dp, 29.dp),
             )
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -64,7 +64,7 @@ fun AppHeader(modifier: Modifier = Modifier) {
                 shape = RoundedCornerShape(999.dp),
             ) {
                 Text(
-                    "v0.3.0",
+                    "v0.3.1",
                     color = Tertiary,
                     fontFamily = JetBrainsMonoFontFamily,
                     fontWeight = FontWeight.SemiBold,

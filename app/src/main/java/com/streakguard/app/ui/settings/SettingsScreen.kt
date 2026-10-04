@@ -325,23 +325,26 @@ fun SettingsScreen(container: AppContainer) {
         Spacer(Modifier.height(24.dp))
 
         // --- About ---
-        Text(
-            "App version v0.3.0",
-            color = TextMuted,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
-        TextButton(
-            onClick = {
-                runCatching {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL)),
-                    )
-                }
-            },
-            modifier = Modifier.padding(horizontal = 0.dp),
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Privacy Policy", color = Tertiary, fontSize = 13.sp)
+            Text(
+                "App version v0.3.1",
+                color = TextMuted,
+                fontSize = 12.sp,
+            )
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL)),
+                        )
+                    }
+                },
+            ) {
+                Text("Privacy Policy", color = TextMuted, fontSize = 13.sp)
+            }
         }
         Spacer(Modifier.height(24.dp))
     }

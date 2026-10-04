@@ -94,7 +94,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 statusUnknown = !known,
             )
         }
-        lastCheckedText = latestEpoch?.let { "Last checked " + TimeUtils.formatLocalTime(it) }
+        lastCheckedText = latestEpoch?.let {
+            "Last checked " + TimeUtils.formatLocalTime(container.appContext(), it)
+        }
     }
 
     /**

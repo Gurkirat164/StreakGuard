@@ -43,14 +43,22 @@ object TimeUtils {
         return ((now - start).coerceAtLeast(0) / 86_400_000f).coerceIn(0f, 1f)
     }
 
-    private val localTimeFormat = DateTimeFormatter.ofPattern("HH:mm")
     private val localTimeWithZoneFormat = DateTimeFormatter.ofPattern("HH:mm z")
 
-    /** Format an epoch-millis timestamp in the device's local timezone. */
-    fun formatLocalTime(epochMillis: Long): String =
-        Instant.ofEpochMilli(epochMillis)
+    /**
+     * Format an epoch-millis timestamp in the device's local timezone,
+     * following the device's 12/24-hour clock setting. Falls back to
+     * 12-hour format when the setting can't be read.
+     */
+    fun formatLocalTime(context: android.content.Context, epochMillis: Long): String {
+        val use24Hour = runCatching {
+            android.text.format.DateFormat.is24HourFormat(context)
+        }.getOrDefault(false)
+        val pattern = if (use24Hour) "HH:mm" else "hh:mm a"
+        return Instant.ofEpochMilli(epochMillis)
             .atZone(ZoneId.systemDefault())
-            .format(localTimeFormat)
+            .format(DateTimeFormatter.ofPattern(pattern))
+    }
 
     /**
      * The local clock time of the coming UTC-midnight reset,
