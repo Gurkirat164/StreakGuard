@@ -23,6 +23,8 @@ class LeetCodePlatform(private val api: LeetCodeApi) : StreakPlatform {
             title = question.title,
             slug = question.titleSlug,
             url = "https://leetcode.com" + question.link,
+            difficulty = question.difficulty.ifBlank { null },
+            questionNumber = question.questionFrontendId.ifBlank { null },
         )
     }
 

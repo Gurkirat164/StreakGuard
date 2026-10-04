@@ -42,6 +42,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.streakguard.app.ui.theme.JetBrainsMonoFontFamily
@@ -64,6 +65,12 @@ import com.streakguard.app.ui.theme.OnPrimary
 import com.streakguard.app.ui.theme.PillBackground
 import com.streakguard.app.ui.theme.TextMuted
 import com.streakguard.app.ui.theme.TextPrimary
+
+private val SwitchOnThumb = Color(0xFFE8ECF8)
+private val SwitchOffTrack = Color(0xFF242A38)
+private val SwitchOffThumb = Color(0xFF8B93A7)
+
+private const val PRIVACY_POLICY_URL = "https://gurkirat164.github.io/StreakGuard/Policies/"
 
 @Composable
 fun SettingsScreen(container: AppContainer) {
@@ -142,7 +149,11 @@ fun SettingsScreen(container: AppContainer) {
                         onCheckedChange = { vm.onEnabledChange(platform.platformId, it) },
                         colors = SwitchDefaults.colors(
                             checkedTrackColor = Primary,
-                            checkedThumbColor = OnPrimary,
+                            checkedThumbColor = SwitchOnThumb,
+                            checkedBorderColor = Color.Transparent,
+                            uncheckedTrackColor = SwitchOffTrack,
+                            uncheckedThumbColor = SwitchOffThumb,
+                            uncheckedBorderColor = Color.Transparent,
                         ),
                     )
                 }
@@ -215,7 +226,11 @@ fun SettingsScreen(container: AppContainer) {
                     onCheckedChange = { vm.onConfirmWhenDoneChange(it) },
                     colors = SwitchDefaults.colors(
                         checkedTrackColor = Primary,
-                        checkedThumbColor = OnPrimary,
+                        checkedThumbColor = SwitchOnThumb,
+                        checkedBorderColor = Color.Transparent,
+                        uncheckedTrackColor = SwitchOffTrack,
+                        uncheckedThumbColor = SwitchOffThumb,
+                        uncheckedBorderColor = Color.Transparent,
                     ),
                 )
             }
@@ -306,6 +321,27 @@ fun SettingsScreen(container: AppContainer) {
             Icon(Icons.Filled.Notifications, contentDescription = null, tint = Tertiary)
             Spacer(Modifier.width(8.dp))
             Text("Send test notification", color = TextPrimary)
+        }
+        Spacer(Modifier.height(24.dp))
+
+        // --- About ---
+        Text(
+            "App version v0.3.0",
+            color = TextMuted,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        TextButton(
+            onClick = {
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL)),
+                    )
+                }
+            },
+            modifier = Modifier.padding(horizontal = 0.dp),
+        ) {
+            Text("Privacy Policy", color = Tertiary, fontSize = 13.sp)
         }
         Spacer(Modifier.height(24.dp))
     }

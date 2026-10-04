@@ -19,4 +19,11 @@ interface CheckLogDao {
             "ORDER BY checkedAtEpoch DESC LIMIT 1"
     )
     suspend fun getForDate(platformId: String, date: String): CheckLog?
+
+    /** Latest row for a platform across all days (streak fallback). */
+    @Query(
+        "SELECT * FROM check_log WHERE platformId = :platformId " +
+            "ORDER BY checkedAtEpoch DESC LIMIT 1"
+    )
+    suspend fun getLatest(platformId: String): CheckLog?
 }

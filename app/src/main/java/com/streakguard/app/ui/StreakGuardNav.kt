@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +23,7 @@ import com.streakguard.app.di.AppContainer
 import com.streakguard.app.ui.home.HomeScreen
 import com.streakguard.app.ui.leetcode.LeetCodeScreen
 import com.streakguard.app.ui.settings.SettingsScreen
+import com.streakguard.app.ui.theme.Primary
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
@@ -53,6 +55,11 @@ fun StreakGuardNav(container: AppContainer) {
                         },
                         icon = { Icon(tab.icon, contentDescription = tab.label) },
                         label = { Text(tab.label) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Primary,
+                            selectedTextColor = Primary,
+                            indicatorColor = Primary.copy(alpha = 0.16f),
+                        ),
                     )
                 }
             }

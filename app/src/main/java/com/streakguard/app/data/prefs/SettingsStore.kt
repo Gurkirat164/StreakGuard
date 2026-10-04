@@ -59,6 +59,17 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { it[booleanPreferencesKey("enabled_$platformId")] = value }
     }
 
+    // --- First-launch onboarding ---
+
+    private val onboardingKey = booleanPreferencesKey("onboarding_done")
+
+    val onboardingDone: Flow<Boolean> =
+        context.dataStore.data.map { it[onboardingKey] ?: false }
+
+    suspend fun setOnboardingDone(value: Boolean) {
+        context.dataStore.edit { it[onboardingKey] = value }
+    }
+
     // --- Optional "streak safe" confirmation when the challenge is done ---
 
     val confirmWhenDone: Flow<Boolean> =

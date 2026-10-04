@@ -19,7 +19,7 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.StreakGuard">
+            android:theme="@style/Theme.StreakGuard.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -28,6 +28,10 @@
 
         <receiver
             android:name=".receiver.DailyCheckReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".receiver.MidnightRefreshReceiver"
             android:exported="false" />
 
         <receiver

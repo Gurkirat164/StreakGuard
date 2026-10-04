@@ -6,7 +6,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.media.RingtoneManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.streakguard.app.R
 
@@ -49,6 +53,26 @@ class NotificationHelper(private val context: Context) {
         )
     }
 
+    /**
+     * Rings the alarm tone for a few seconds so a missed challenge is hard
+     * to ignore, then stops itself.
+     */
+    fun playAlarmSound() {
+        try {
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                ?: return
+            val ringtone = RingtoneManager.getRingtone(context, uri) ?: return
+            ringtone.play()
+            Handler(Looper.getMainLooper()).postDelayed(
+                { runCatching { ringtone.stop() } },
+                ALARM_RING_MILLIS,
+            )
+        } catch (e: Exception) {
+            Log.w("NotificationHelper", "Could not play alarm sound", e)
+        }
+    }
+
     /** Posted when today's challenge is confirmed not done. Tapping opens the problem. */
     fun notifyMissed(
         platformName: String,
@@ -56,8 +80,9 @@ class NotificationHelper(private val context: Context) {
         challengeTitle: String,
         challengeUrl: String,
     ) {
+        playAlarmSound()
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("$platformName: today's challenge isn't done yet")
             .setContentText(challengeTitle)
             .setStyle(NotificationCompat.BigTextStyle().bigText(challengeTitle))
@@ -71,7 +96,7 @@ class NotificationHelper(private val context: Context) {
     /** Optional confirmation posted when the challenge is already done. */
     fun notifyDone(platformName: String, platformId: String) {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("$platformName: streak safe")
             .setContentText("Today's challenge is done. Nice work.")
             .setAutoCancel(true)
@@ -82,7 +107,7 @@ class NotificationHelper(private val context: Context) {
 
     fun sendTest() {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("StreakGuard test notification")
             .setContentText("If you can read this, reminders will reach you.")
             .setAutoCancel(true)
@@ -95,5 +120,6 @@ class NotificationHelper(private val context: Context) {
         private const val NOTIF_MISSED_BASE = 2000
         private const val NOTIF_DONE_BASE = 3000
         private const val NOTIF_TEST = 9999
+        private const val ALARM_RING_MILLIS = 5_000L
     }
 }

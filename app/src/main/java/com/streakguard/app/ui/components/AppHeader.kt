@@ -64,7 +64,7 @@ fun AppHeader(modifier: Modifier = Modifier) {
                 shape = RoundedCornerShape(999.dp),
             ) {
                 Text(
-                    "v0.2.3",
+                    "v0.3.0",
                     color = Tertiary,
                     fontFamily = JetBrainsMonoFontFamily,
                     fontWeight = FontWeight.SemiBold,

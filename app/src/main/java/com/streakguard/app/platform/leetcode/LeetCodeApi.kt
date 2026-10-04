@@ -19,6 +19,10 @@ data class DailyQuestion(
     val titleSlug: String,
     /** Relative link, e.g. "/problems/two-sum/". */
     val link: String,
+    /** "Easy", "Medium" or "Hard"; empty when unknown. */
+    val difficulty: String = "",
+    /** Frontend question id, e.g. "3152"; empty when unknown. */
+    val questionFrontendId: String = "",
 )
 
 private const val GRAPHQL_URL = "https://leetcode.com/graphql"
@@ -55,7 +59,7 @@ class LeetCodeApi(private val client: OkHttpClient) {
 
     suspend fun getDailyQuestion(): DailyQuestion? {
         val root = postGraphql(
-            "{ activeDailyCodingChallengeQuestion { date link question { title titleSlug } } }"
+            "{ activeDailyCodingChallengeQuestion { date link question { title titleSlug difficulty questionFrontendId } } }"
         ) ?: return null
         return runCatching {
             val node = root.getJSONObject("data")
@@ -66,6 +70,8 @@ class LeetCodeApi(private val client: OkHttpClient) {
                 title = question.optString("title", ""),
                 titleSlug = question.optString("titleSlug", ""),
                 link = link,
+                difficulty = question.optString("difficulty", ""),
+                questionFrontendId = question.optString("questionFrontendId", ""),
             ).takeIf { it.titleSlug.isNotBlank() }
         }.getOrNull()
     }

@@ -31,9 +31,15 @@ class DailyCheckOrchestrator(
         /** null = unknown */
         val completed: Boolean?,
         val streak: Int?,
+        val difficulty: String?,
+        val questionNumber: String?,
     )
 
-    suspend fun runCheck(manual: Boolean): List<PlatformStatus> {
+    /**
+     * @param notify when false the check is silent (background refresh):
+     *   cache is updated but no notification is posted.
+     */
+    suspend fun runCheck(manual: Boolean, notify: Boolean = true): List<PlatformStatus> {
         val confirmWhenDone = runCatching { settings.confirmWhenDone.first() }.getOrDefault(false)
         val today = TimeUtils.utcToday()
         val results = mutableListOf<PlatformStatus>()
@@ -49,10 +55,14 @@ class DailyCheckOrchestrator(
             var challengeUrl: String? = null
             var completed: Boolean? = null
             var streak: Int? = null
+            var difficulty: String? = null
+            var questionNumber: String? = null
             try {
                 val challenge = platform.getDailyChallenge()
                 challengeTitle = challenge?.title
                 challengeUrl = challenge?.url
+                difficulty = challenge?.difficulty
+                questionNumber = challenge?.questionNumber
                 completed = platform.isCompletedToday(username)
                 streak = runCatching { platform.getStreak(username) }.getOrNull()
             } catch (e: Exception) {
@@ -60,29 +70,37 @@ class DailyCheckOrchestrator(
                 completed = null
             }
 
+            val fetchedAnything = completed != null || challengeTitle != null
             runCatching {
-                db.checkLogDao().insert(
-                    CheckLog(
-                        platformId = platform.id,
-                        date = today,
-                        completed = completed == true,
-                        known = completed != null,
-                        checkedAtEpoch = System.currentTimeMillis(),
-                        challengeTitle = challengeTitle,
-                        challengeUrl = challengeUrl,
-                        streak = streak,
+                // Never let a failed check wipe out today's good data: only
+                // persist when we learned something or nothing was stored yet.
+                val existing = db.checkLogDao().getForDate(platform.id, today)
+                if (fetchedAnything || existing == null) {
+                    db.checkLogDao().insert(
+                        CheckLog(
+                            platformId = platform.id,
+                            date = today,
+                            completed = completed == true,
+                            known = completed != null,
+                            checkedAtEpoch = System.currentTimeMillis(),
+                            challengeTitle = challengeTitle,
+                            challengeUrl = challengeUrl,
+                            streak = streak,
+                            difficulty = difficulty,
+                            questionNumber = questionNumber,
+                        )
                     )
-                )
+                }
             }.onFailure { Log.w(TAG, "Failed to log check for ${platform.id}", it) }
 
-            if (completed == false) {
+            if (notify && completed == false) {
                 notifications.notifyMissed(
                     platformName = platform.displayName,
                     platformId = platform.id,
                     challengeTitle = challengeTitle ?: "Today's challenge",
                     challengeUrl = challengeUrl ?: "https://leetcode.com",
                 )
-            } else if (completed == true && confirmWhenDone) {
+            } else if (completed == true && confirmWhenDone && notify) {
                 notifications.notifyDone(platform.displayName, platform.id)
             }
 
@@ -94,6 +112,8 @@ class DailyCheckOrchestrator(
                     challengeUrl = challengeUrl,
                     completed = completed,
                     streak = streak,
+                    difficulty = difficulty,
+                    questionNumber = questionNumber,
                 )
             )
         }

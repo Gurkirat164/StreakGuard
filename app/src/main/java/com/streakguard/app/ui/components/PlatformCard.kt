@@ -228,26 +228,26 @@ fun PlatformCard(
                             lineHeight = 44.sp,
                         )
                         Spacer(Modifier.width(4.dp))
-                        Text(
-                            "DAYS",
-                            color = FigmaWarmWhite,
-                            fontFamily = GeistFontFamily,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 20.sp,
-                            lineHeight = 26.sp,
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
+                        Column {
+                            Text(
+                                "DAYS",
+                                color = FigmaWarmWhite,
+                                fontFamily = GeistFontFamily,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 20.sp,
+                                lineHeight = 26.sp,
+                            )
+                            Text(
+                                "CURRENT STREAK",
+                                color = FigmaWarmGray,
+                                fontFamily = GeistFontFamily,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 10.sp,
+                                letterSpacing = 2.sp,
+                                lineHeight = 14.sp,
+                            )
+                        }
                     }
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "CURRENT STREAK",
-                        color = FigmaWarmGray,
-                        fontFamily = GeistFontFamily,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 10.sp,
-                        letterSpacing = 2.sp,
-                        lineHeight = 14.sp,
-                    )
                 }
                 Box(
                     modifier = Modifier.size(56.dp),
@@ -335,7 +335,50 @@ fun PlatformCard(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
+
+            // --- Today's question ---
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(FigmaSubpanelBg)
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (platform.questionMissing) {
+                    Text(
+                        "Unable to refresh",
+                        color = FigmaWarmGray,
+                        fontFamily = GeistFontFamily,
+                        fontSize = 14.sp,
+                    )
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_logo_code),
+                            contentDescription = null,
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(15.dp, 12.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = listOfNotNull(
+                                platform.questionNumber?.let { "$it." },
+                                platform.challengeTitle,
+                            ).joinToString(" "),
+                            color = FigmaTitleWhite,
+                            fontFamily = GeistFontFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp,
+                            modifier = Modifier.weight(1f),
+                        )
+                        platform.difficulty?.let { DifficultyPill(it) }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
 
             // --- Direct Solve Daily (with soft orange glow) ---
             Box(
@@ -439,7 +482,11 @@ fun PlatformCard(
                     }
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        if (isChecking) "Checking…" else "Refresh Now",
+                        when {
+                            isChecking -> "Checking…"
+                            !platform.questionMissing && platform.statusUnknown -> "Unable to refresh"
+                            else -> "Refresh Now"
+                        },
                         fontFamily = GeistFontFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.sp,
@@ -458,3 +505,28 @@ private data class Quad(
     val start: Color,
     val end: Color,
 )
+
+/** Difficulty pill: Easy = mint, Medium = amber, Hard = red. */
+@Composable
+private fun DifficultyPill(difficulty: String) {
+    val (textColor, start, end) = when (difficulty.lowercase()) {
+        "easy" -> Triple(FigmaMint, FigmaPillSolvedStart, FigmaPillSolvedEnd)
+        "hard" -> Triple(Color(0xFFFF7B7B), Color(0xFF33252A), Color(0xFF5A2E2E))
+        else -> Triple(FigmaAmber, FigmaPillStart, FigmaPillEnd)
+    }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(7.dp))
+            .background(Brush.horizontalGradient(listOf(start, end)))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(
+            difficulty.replaceFirstChar { it.uppercase() },
+            color = textColor,
+            fontFamily = JetBrainsMonoFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 11.sp,
+            letterSpacing = 0.5.sp,
+        )
+    }
+}

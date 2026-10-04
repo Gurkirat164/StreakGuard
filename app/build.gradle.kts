@@ -12,8 +12,8 @@ android {
         applicationId = "com.streakguard.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 5
-        versionName = "0.2.3"
+        versionCode = 6
+        versionName = "0.3.0"
     }
 
     buildTypes {
@@ -58,6 +58,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
 
     implementation("androidx.core:core-ktx:1.19.1")
+    implementation("androidx.core:core-splashscreen:1.2.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")

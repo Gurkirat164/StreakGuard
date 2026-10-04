@@ -22,6 +22,7 @@ class BootReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 app.container.alarmScheduler.rescheduleFromSettings()
+                app.container.alarmScheduler.scheduleMidnightRefresh()
             } finally {
                 pending.finish()
             }

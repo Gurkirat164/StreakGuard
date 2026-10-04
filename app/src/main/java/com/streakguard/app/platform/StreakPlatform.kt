@@ -7,6 +7,10 @@ data class DailyChallenge(
     val title: String,
     val slug: String,
     val url: String,
+    /** "Easy"/"Medium"/"Hard", null when unknown. */
+    val difficulty: String? = null,
+    /** Frontend question id, e.g. "3152", null when unknown. */
+    val questionNumber: String? = null,
 )
 
 /**

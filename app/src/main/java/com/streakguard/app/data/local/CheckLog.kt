@@ -24,4 +24,8 @@ data class CheckLog(
     val challengeTitle: String?,
     val challengeUrl: String?,
     val streak: Int?,
+    /** LeetCode difficulty ("Easy"/"Medium"/"Hard"), null when unknown. */
+    val difficulty: String? = null,
+    /** LeetCode frontend question id, e.g. "3152", null when unknown. */
+    val questionNumber: String? = null,
 )
