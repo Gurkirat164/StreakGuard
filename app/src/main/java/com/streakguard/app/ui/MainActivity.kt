@@ -15,7 +15,7 @@ import com.streakguard.app.StreakGuardApp
 import com.streakguard.app.di.AppContainer
 import com.streakguard.app.ui.home.HomeViewModel
 import com.streakguard.app.ui.onboarding.OnboardingDialog
-import com.streakguard.app.ui.splash.AnimatedSplashScreen
+import com.streakguard.app.ui.splash.StaticSplashScreen
 import com.streakguard.app.ui.theme.StreakGuardTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -49,7 +49,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (!splashDone) {
-                    AnimatedSplashScreen(
+                    StaticSplashScreen(
                         isReady = vm.initialized,
                         onDone = { splashDone = true },
                     )
