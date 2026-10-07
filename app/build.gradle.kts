@@ -12,8 +12,8 @@ android {
         applicationId = "com.streakguard.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 7
-        versionName = "0.3.1"
+        versionCode = 8
+        versionName = "0.4.0"
     }
 
     buildTypes {
@@ -65,6 +65,8 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.10.2")
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.datastore:datastore-preferences:1.2.1")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
+    testImplementation("junit:junit:4.13.2")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
 
     implementation("androidx.room:room-runtime:2.8.5")

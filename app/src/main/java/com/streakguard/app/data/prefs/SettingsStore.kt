@@ -22,6 +22,45 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
  */
 class SettingsStore(private val context: Context) {
 
+    val remindersEnabled = context.dataStore.data.map { it[booleanPreferencesKey("reminders_enabled")] ?: true }
+    val hapticsEnabled = context.dataStore.data.map { it[booleanPreferencesKey("haptics_enabled")] ?: true }
+    val syncOnOpen = context.dataStore.data.map { it[booleanPreferencesKey("sync_on_open")] ?: true }
+    val syncInterval = context.dataStore.data.map { it[intPreferencesKey("sync_interval")] ?: 15 }
+    val displayTimezone = context.dataStore.data.map { it[stringPreferencesKey("display_timezone")] ?: "UTC" }
+    val reminderHours = context.dataStore.data.map { prefs ->
+        val hours = prefs[stringPreferencesKey("reminder_hours")]?.split(",")?.mapNotNull { it.toIntOrNull() }
+        hours?.takeIf { com.streakguard.app.schedule.ReminderSchedule.valid(it) }
+            ?: com.streakguard.app.schedule.ReminderSchedule.defaultHours
+    }
+
+    suspend fun setRemindersEnabled(value: Boolean) { context.dataStore.edit { it[booleanPreferencesKey("reminders_enabled")] = value } }
+    suspend fun setHapticsEnabled(value: Boolean) { context.dataStore.edit { it[booleanPreferencesKey("haptics_enabled")] = value } }
+    suspend fun setSyncOnOpen(value: Boolean) { context.dataStore.edit { it[booleanPreferencesKey("sync_on_open")] = value } }
+    suspend fun setSyncInterval(value: Int) {
+        require(value in listOf(15, 30, 60))
+        context.dataStore.edit { it[intPreferencesKey("sync_interval")] = value }
+    }
+    suspend fun setDisplayTimezone(value: String) {
+        if (value != "DEVICE") java.time.ZoneId.of(value)
+        context.dataStore.edit { it[stringPreferencesKey("display_timezone")] = value }
+    }
+    suspend fun setReminderHours(value: List<Int>) {
+        require(com.streakguard.app.schedule.ReminderSchedule.valid(value))
+        context.dataStore.edit { it[stringPreferencesKey("reminder_hours")] = value.joinToString(",") }
+    }
+    fun verifiedUsername(platformId: String) = context.dataStore.data.map {
+        it[stringPreferencesKey("verified_username_$platformId")] ?: ""
+    }
+    fun checkedUsername(platformId: String) = context.dataStore.data.map {
+        it[stringPreferencesKey("checked_username_$platformId")] ?: ""
+    }
+    suspend fun setCheckedUsername(platformId: String, value: String) {
+        context.dataStore.edit { it[stringPreferencesKey("checked_username_$platformId")] = value }
+    }
+    suspend fun setVerifiedUsername(platformId: String, value: String) {
+        context.dataStore.edit { it[stringPreferencesKey("verified_username_$platformId")] = value }
+    }
+
     // --- Per-platform username ---
 
     fun username(platformId: String): Flow<String> =

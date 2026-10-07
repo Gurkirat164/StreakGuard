@@ -1,5 +1,6 @@
 package com.streakguard.app.ui.settings
 
+import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -7,94 +8,137 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.streakguard.app.di.AppContainer
+import com.streakguard.app.schedule.ReminderSchedule
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.time.ZoneId
 
-data class PlatformSettingsUi(
-    val platformId: String,
-    val displayName: String,
-    val username: String,
-    val enabled: Boolean,
-)
-
-/**
- * Plain ViewModel (no DI framework): takes the [AppContainer] via a simple factory.
- * Edits are held in memory and persisted with [save], which also re-arms the daily alarm.
- */
 class SettingsViewModel(private val container: AppContainer) : ViewModel() {
-
-    var platforms by mutableStateOf<List<PlatformSettingsUi>>(emptyList())
+    var username by mutableStateOf("")
         private set
-    var checkHour by mutableStateOf(21)
+    var profileVerified by mutableStateOf(false)
         private set
-    var checkMinute by mutableStateOf(0)
+    var remindersEnabled by mutableStateOf(true)
+        private set
+    var hapticsEnabled by mutableStateOf(true)
+        private set
+    var syncOnOpen by mutableStateOf(true)
+        private set
+    var syncInterval by mutableStateOf(15)
+        private set
+    var reminderHours by mutableStateOf(ReminderSchedule.defaultHours)
+        private set
+    var displayTimezone by mutableStateOf("UTC")
         private set
     var confirmWhenDone by mutableStateOf(false)
         private set
-    var savedMessage by mutableStateOf<String?>(null)
+    var initialized by mutableStateOf(false)
         private set
+    var isTesting by mutableStateOf(false)
+        private set
+    var connectionLatency by mutableStateOf<Long?>(null)
+        private set
+    var connectionOk by mutableStateOf<Boolean?>(null)
+        private set
+    var message by mutableStateOf<String?>(null)
+        private set
+    private val edits = Mutex()
+    val zone: ZoneId get() = if (displayTimezone == "DEVICE") ZoneId.systemDefault()
+        else runCatching { ZoneId.of(displayTimezone) }.getOrDefault(ZoneId.of("UTC"))
 
     init {
-        viewModelScope.launch { reload() }
-    }
-
-    private suspend fun reload() {
-        val store = container.settingsStore
-        platforms = container.platformRegistry.platforms.map { platform ->
-            PlatformSettingsUi(
-                platformId = platform.id,
-                displayName = platform.displayName,
-                username = runCatching { store.username(platform.id).first() }.getOrDefault(""),
-                enabled = runCatching { store.enabled(platform.id).first() }.getOrDefault(true),
-            )
-        }
-        checkHour = runCatching { store.getCheckHour() }.getOrDefault(21)
-        checkMinute = runCatching { store.getCheckMinute() }.getOrDefault(0)
-        confirmWhenDone = runCatching { store.confirmWhenDone.first() }.getOrDefault(false)
-    }
-
-    fun onUsernameChange(platformId: String, value: String) {
-        savedMessage = null
-        platforms = platforms.map {
-            if (it.platformId == platformId) it.copy(username = value) else it
-        }
-    }
-
-    fun onEnabledChange(platformId: String, value: Boolean) {
-        savedMessage = null
-        platforms = platforms.map {
-            if (it.platformId == platformId) it.copy(enabled = value) else it
-        }
-    }
-
-    fun onTimeChange(hour: Int, minute: Int) {
-        savedMessage = null
-        checkHour = hour
-        checkMinute = minute
-    }
-
-    fun onConfirmWhenDoneChange(value: Boolean) {
-        savedMessage = null
-        confirmWhenDone = value
-    }
-
-    fun save() {
         viewModelScope.launch {
-            val store = container.settingsStore
-            platforms.forEach { platform ->
-                store.setUsername(platform.platformId, platform.username.trim())
-                store.setEnabled(platform.platformId, platform.enabled)
-            }
-            store.setCheckTime(checkHour, checkMinute)
-            store.setConfirmWhenDone(confirmWhenDone)
-            runCatching { container.alarmScheduler.rescheduleFromSettings() }
-            savedMessage = "Saved. Daily check at %02d:%02d.".format(checkHour, checkMinute)
+            try {
+                val store = container.settingsStore
+                username = store.username("leetcode").first()
+                profileVerified = username.isNotBlank() && store.verifiedUsername("leetcode").first() == username
+                remindersEnabled = store.remindersEnabled.first()
+                hapticsEnabled = store.hapticsEnabled.first()
+                syncOnOpen = store.syncOnOpen.first()
+                syncInterval = store.syncInterval.first()
+                reminderHours = store.reminderHours.first()
+                displayTimezone = store.displayTimezone.first()
+                confirmWhenDone = store.confirmWhenDone.first()
+            } catch (_: Exception) { message = "Couldn't load settings. Please reopen this screen." }
+            finally { initialized = true }
         }
     }
-
+    private fun edit(action: suspend () -> Unit) {
+        viewModelScope.launch {
+            edits.withLock {
+                try { action(); message = null }
+                catch (_: Exception) { message = "Couldn't save the change. Please try again." }
+            }
+        }
+    }
+    fun changeUsername(value: String) {
+        val handle = value.trim().removePrefix("@")
+        if (handle.isBlank() || handle.any { it.isWhitespace() }) {
+            message = "Enter a public LeetCode username without spaces."; return
+        }
+        edit {
+            container.settingsStore.setUsername("leetcode", handle)
+            container.settingsStore.setEnabled("leetcode", true)
+            username = handle; profileVerified = false; connectionOk = null; connectionLatency = null
+            container.alarmScheduler.rescheduleFromSettings()
+            testConnection()
+        }
+    }
+    fun setReminders(value: Boolean) = edit {
+        container.settingsStore.setRemindersEnabled(value); remindersEnabled = value
+        if (!value) androidx.work.WorkManager.getInstance(container.appContext()).cancelAllWorkByTag("countdown_reminder")
+        container.alarmScheduler.rescheduleFromSettings()
+    }
+    fun setHaptics(value: Boolean) = edit {
+        container.settingsStore.setHapticsEnabled(value); hapticsEnabled = value
+    }
+    fun onSyncOnOpenChange(value: Boolean) = edit {
+        container.settingsStore.setSyncOnOpen(value); syncOnOpen = value
+    }
+    fun setInterval(value: Int) = edit {
+        container.settingsStore.setSyncInterval(value); syncInterval = value
+        container.syncScheduler.schedule(value)
+    }
+    fun setTimezone(value: String) = edit {
+        container.settingsStore.setDisplayTimezone(value); displayTimezone = value
+    }
+    fun onConfirmWhenDoneChange(value: Boolean) = edit {
+        container.settingsStore.setConfirmWhenDone(value); confirmWhenDone = value
+    }
+    fun setTiers(hours: List<Int>): Boolean {
+        if (!ReminderSchedule.valid(hours)) return false
+        edit {
+            container.settingsStore.setReminderHours(hours); reminderHours = hours
+            androidx.work.WorkManager.getInstance(container.appContext()).cancelAllWorkByTag("countdown_reminder")
+            container.alarmScheduler.rescheduleFromSettings()
+        }
+        return true
+    }
+    fun testConnection() {
+        if (isTesting || username.isBlank()) return
+        val handle = username
+        isTesting = true
+        viewModelScope.launch {
+            try {
+                val started = SystemClock.elapsedRealtime()
+                val exists = container.leetCodeApi.profileExists(handle)
+                if (username != handle) return@launch
+                connectionLatency = SystemClock.elapsedRealtime() - started
+                connectionOk = exists == true; profileVerified = exists == true
+                container.settingsStore.setVerifiedUsername("leetcode", if (exists == true) handle else "")
+                message = when (exists) {
+                    true -> null
+                    false -> "That public LeetCode profile wasn't found. Check your username."
+                    null -> "Couldn't reach LeetCode. Check your connection and try again."
+                }
+            } catch (_: Exception) { connectionOk = false; message = "Connection test failed. Please try again." }
+            finally { isTesting = false }
+        }
+    }
     class Factory(private val container: AppContainer) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            SettingsViewModel(container) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = SettingsViewModel(container) as T
     }
 }

@@ -79,18 +79,38 @@ class NotificationHelper(private val context: Context) {
         platformId: String,
         challengeTitle: String,
         challengeUrl: String,
+        tier: Int = 2,
+        haptics: Boolean = true,
     ) {
-        playAlarmSound()
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        if (!notificationsEnabled()) return
+        val channelId = tierChannel(tier, haptics)
+        val channel = manager.getNotificationChannel(channelId)
+        if (channel.importance == NotificationManager.IMPORTANCE_NONE) return
+        if (tier == 2 && channel.sound != null) playAlarmSound()
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("$platformName: today's challenge isn't done yet")
             .setContentText(challengeTitle)
             .setStyle(NotificationCompat.BigTextStyle().bigText(challengeTitle))
             .setContentIntent(challengeIntent(challengeUrl))
             .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(if (tier == 0) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_HIGH)
             .build()
         manager.notify(NOTIF_MISSED_BASE + platformId.hashCode().and(0xFFF), notification)
+    }
+
+    private fun tierChannel(tier: Int, haptics: Boolean): String {
+        val id = "reminder_${tier}_${if (haptics && tier > 0) "haptic" else "quiet"}"
+        val names = listOf("Passive ping", "Warning nudge", "Urgent buzzer")
+        val channel = NotificationChannel(id, names[tier.coerceIn(0, 2)],
+            if (tier == 0) NotificationManager.IMPORTANCE_LOW else NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "Countdown reminders before the daily UTC reset"
+            enableVibration(haptics && tier > 0)
+            if (haptics && tier > 0) vibrationPattern = longArrayOf(0, 180, 120, 180)
+            if (tier == 0) setSound(null, null)
+        }
+        manager.createNotificationChannel(channel)
+        return id
     }
 
     /** Optional confirmation posted when the challenge is already done. */

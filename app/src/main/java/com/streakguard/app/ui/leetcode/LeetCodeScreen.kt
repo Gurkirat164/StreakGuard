@@ -12,7 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,7 +32,7 @@ import com.streakguard.app.ui.theme.TextMuted
 @Composable
 fun LeetCodeScreen(container: AppContainer) {
     // Same instance as the Today tab so both stay in sync.
-    val activity = LocalContext.current as ComponentActivity
+    val activity = LocalActivity.current as ComponentActivity
     val vm: HomeViewModel = viewModel(
         viewModelStoreOwner = activity,
         factory = remember { HomeViewModel.Factory(container) },

@@ -8,6 +8,9 @@ import com.streakguard.app.notify.NotificationHelper
 import com.streakguard.app.platform.PlatformRegistry
 import com.streakguard.app.util.TimeUtils
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CancellationException
 
 /**
  * Runs the daily check for every enabled platform that has a username set:
@@ -22,6 +25,7 @@ class DailyCheckOrchestrator(
     private val db: AppDatabase,
     private val notifications: NotificationHelper,
 ) {
+    private val checkMutex = Mutex()
 
     data class PlatformStatus(
         val platformId: String,
@@ -39,7 +43,7 @@ class DailyCheckOrchestrator(
      * @param notify when false the check is silent (background refresh):
      *   cache is updated but no notification is posted.
      */
-    suspend fun runCheck(manual: Boolean, notify: Boolean = true): List<PlatformStatus> {
+    suspend fun runCheck(manual: Boolean, notify: Boolean = true, reminderTier: Int = 2): List<PlatformStatus> = checkMutex.withLock {
         val confirmWhenDone = runCatching { settings.confirmWhenDone.first() }.getOrDefault(false)
         val today = TimeUtils.utcToday()
         val results = mutableListOf<PlatformStatus>()
@@ -66,6 +70,7 @@ class DailyCheckOrchestrator(
                 completed = platform.isCompletedToday(username)
                 streak = runCatching { platform.getStreak(username) }.getOrNull()
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.w(TAG, "Check failed for ${platform.id} (manual=$manual)", e)
                 completed = null
             }
@@ -90,17 +95,21 @@ class DailyCheckOrchestrator(
                             questionNumber = questionNumber,
                         )
                     )
+                    settings.setCheckedUsername(platform.id, username)
                 }
             }.onFailure { Log.w(TAG, "Failed to log check for ${platform.id}", it) }
 
-            if (notify && completed == false) {
+            val notifyAllowed = notify && settings.remindersEnabled.first() && today == TimeUtils.utcToday()
+            if (notifyAllowed && completed == false) {
                 notifications.notifyMissed(
                     platformName = platform.displayName,
                     platformId = platform.id,
                     challengeTitle = challengeTitle ?: "Today's challenge",
                     challengeUrl = challengeUrl ?: "https://leetcode.com",
+                    tier = reminderTier,
+                    haptics = settings.hapticsEnabled.first(),
                 )
-            } else if (completed == true && confirmWhenDone && notify) {
+            } else if (completed == true && confirmWhenDone && notifyAllowed) {
                 notifications.notifyDone(platform.displayName, platform.id)
             }
 
@@ -117,7 +126,7 @@ class DailyCheckOrchestrator(
                 )
             )
         }
-        return results
+        results
     }
 
     companion object {

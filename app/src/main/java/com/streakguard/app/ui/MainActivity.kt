@@ -19,6 +19,7 @@ import com.streakguard.app.ui.splash.StaticSplashScreen
 import com.streakguard.app.ui.theme.StreakGuardTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.lifecycle.ViewModelProvider
 
 class MainActivity : ComponentActivity() {
 
@@ -30,6 +31,8 @@ class MainActivity : ComponentActivity() {
         // Keep the silent midnight refresh armed (cheap, idempotent).
         lifecycleScope.launch {
             runCatching { container.alarmScheduler.scheduleMidnightRefresh() }
+            runCatching { container.alarmScheduler.rescheduleFromSettings() }
+            runCatching { container.syncScheduler.schedule(container.settingsStore.syncInterval.first()) }
         }
 
         setContent {
@@ -64,5 +67,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+    override fun onStart() {
+        super.onStart()
+        val container = (application as StreakGuardApp).container
+        ViewModelProvider(this, HomeViewModel.Factory(container))[HomeViewModel::class.java].refreshOnOpen()
     }
 }

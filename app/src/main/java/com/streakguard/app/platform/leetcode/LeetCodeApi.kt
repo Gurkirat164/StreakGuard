@@ -36,6 +36,15 @@ private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
  */
 class LeetCodeApi(private val client: OkHttpClient) {
 
+    /** null means unavailable; false means the server explicitly returned no matching profile. */
+    suspend fun profileExists(username: String): Boolean? {
+        val root = postGraphql("""{ matchedUser(username: "${safeUsername(username)}") { username } }""") ?: return null
+        if (root.has("errors")) return null
+        val data = root.optJSONObject("data") ?: return null
+        if (!data.has("matchedUser")) return null
+        return data.optJSONObject("matchedUser")?.optString("username")?.isNotBlank() == true
+    }
+
     private suspend fun postGraphql(query: String): JSONObject? = withContext(Dispatchers.IO) {
         runCatching {
             val body = JSONObject().put("query", query).toString().toRequestBody(JSON_MEDIA_TYPE)

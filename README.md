@@ -40,9 +40,12 @@ reminder comfortably before that if you want a true last-chance nudge.
 4. Install it on your device (`adb install …` or drag onto the emulator).
 5. Open StreakGuard → grant **Notifications** and **Alarms & reminders** when asked
    (the Settings screen also has shortcuts if you skip them).
-6. Enter your LeetCode username in Settings, pick a check time, tap **Save**.
+6. In Settings, use **Change** to enter your public LeetCode username and **Test Connection** to verify it.
+   Reminders default to 6, 3, and 1 hours before the **00:00 UTC** reset; use **Edit** to change these offsets.
+   The timezone picker changes displayed times, while the underlying reset stays in UTC.
+   Settings save automatically. Choose a 15, 30, or 60 minute silent sync interval, and optionally sync on app open.
 
-The Save button re-arms the daily alarm immediately, and it is re-armed
+Reminder changes re-arm the countdown alarms immediately, and they are re-armed
 automatically after every reboot (open the app once after installing — Android only
 delivers `BOOT_COMPLETED` to apps that have been launched at least once).
 

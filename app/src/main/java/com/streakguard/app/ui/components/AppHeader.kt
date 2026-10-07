@@ -12,6 +12,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +35,10 @@ import com.streakguard.app.ui.theme.TextPrimary
  */
 @Composable
 fun AppHeader(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val version = remember {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName
+    }
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -64,7 +70,7 @@ fun AppHeader(modifier: Modifier = Modifier) {
                 shape = RoundedCornerShape(999.dp),
             ) {
                 Text(
-                    "v0.3.1",
+                    "v$version",
                     color = Tertiary,
                     fontFamily = JetBrainsMonoFontFamily,
                     fontWeight = FontWeight.SemiBold,

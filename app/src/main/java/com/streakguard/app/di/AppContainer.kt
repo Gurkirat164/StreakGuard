@@ -31,7 +31,7 @@ class AppContainer(context: Context) {
             .build()
     }
 
-    private val leetCodeApi: LeetCodeApi by lazy { LeetCodeApi(okHttpClient) }
+    val leetCodeApi: LeetCodeApi by lazy { LeetCodeApi(okHttpClient) }
 
     val platformRegistry: PlatformRegistry by lazy {
         PlatformRegistry(
@@ -49,6 +49,7 @@ class AppContainer(context: Context) {
     val notificationHelper: NotificationHelper by lazy { NotificationHelper(appContext) }
 
     val alarmScheduler: AlarmScheduler by lazy { AlarmScheduler(appContext, settingsStore) }
+    val syncScheduler by lazy { com.streakguard.app.schedule.SyncScheduler(appContext) }
 
     val checkOrchestrator: DailyCheckOrchestrator by lazy {
         DailyCheckOrchestrator(

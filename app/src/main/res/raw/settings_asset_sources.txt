@@ -1,0 +1,16 @@
+Settings screen asset sources
+
+Google Material icons and Material Symbols (unmodified paths, Apache-2.0):
+https://github.com/google/material-design-icons
+See material_icons_license.txt.
+
+Liberation Mono Regular and Bold 2.1.5 (unmodified, SIL Open Font License):
+https://github.com/liberationfonts/liberation-fonts/releases/tag/2.1.5
+See liberation_font_license.txt.
+
+Nimbus Sans Regular (unmodified font, AGPL-3.0 with the original font notice):
+https://github.com/ArtifexSoftware/urw-base35-fonts
+Original font and corresponding font files:
+https://github.com/ArtifexSoftware/urw-base35-fonts/tree/master/fonts
+See nimbus_font_notice.txt and nimbus_font_license.txt.
+This font is only used for the imported countdown descriptions in Figma.

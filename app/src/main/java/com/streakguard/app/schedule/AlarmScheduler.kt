@@ -13,6 +13,9 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.Instant
+import java.time.ZoneOffset
+import kotlinx.coroutines.flow.first
 
 /**
  * Schedules the once-daily check with an exact alarm (fires even in Doze).
@@ -33,7 +36,23 @@ class AlarmScheduler(
 
     /** Re-read hour/minute from settings and schedule the next trigger. */
     suspend fun rescheduleFromSettings() {
-        scheduleDaily(settings.getCheckHour(), settings.getCheckMinute())
+        cancel()
+        if (!settings.remindersEnabled.first()) return
+        settings.reminderHours.first().forEachIndexed { tier, hours ->
+            val trigger = ReminderSchedule.nextTrigger(Instant.now(), hours)
+            val intent = Intent(context, DailyCheckReceiver::class.java).apply {
+                putExtra("reminder_tier", tier)
+                putExtra("platform_day", trigger.atZone(ZoneOffset.UTC).toLocalDate().toString())
+            }
+            val pending = PendingIntent.getBroadcast(context, REQUEST_TIER_BASE + tier, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val manager = context.getSystemService(AlarmManager::class.java) ?: return
+            try {
+                manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger.toEpochMilli(), pending)
+            } catch (_: SecurityException) {
+                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger.toEpochMilli(), pending)
+            }
+        }
     }
 
     fun scheduleDaily(hour: Int, minute: Int) {
@@ -67,14 +86,16 @@ class AlarmScheduler(
 
     fun cancel() {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        for (code in listOf(REQUEST_CODE) + (REQUEST_TIER_BASE..REQUEST_TIER_BASE + 2)) {
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            REQUEST_CODE,
+            code,
             Intent(context, DailyCheckReceiver::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         alarmManager.cancel(pendingIntent)
         pendingIntent.cancel()
+        }
     }
 
     /**
@@ -129,6 +150,7 @@ class AlarmScheduler(
 
     companion object {
         private const val REQUEST_CODE = 1001
+        private const val REQUEST_TIER_BASE = 1010
         private const val REQUEST_MIDNIGHT = 1002
         private const val REQUEST_RETRY = 1003
     }
