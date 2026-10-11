@@ -14,3 +14,13 @@ Original font and corresponding font files:
 https://github.com/ArtifexSoftware/urw-base35-fonts/tree/master/fonts
 See nimbus_font_notice.txt and nimbus_font_license.txt.
 This font is only used for the imported countdown descriptions in Figma.
+
+Roboto Mono variable font (unmodified, SIL Open Font License):
+https://github.com/google/fonts/tree/main/ofl/robotomono
+See roboto_mono_license.txt.
+Used for the two permission descriptions in the updated Figma design.
+
+Geist Bold (unmodified, SIL Open Font License):
+https://github.com/vercel/geist-font/blob/main/fonts/Geist/ttf/Geist-Bold.ttf
+See geist_font_license.txt.
+Used for the Permissions and Others card headings, titles, and primary actions.

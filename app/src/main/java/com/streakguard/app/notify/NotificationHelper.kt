@@ -15,7 +15,7 @@ import androidx.core.app.NotificationCompat
 import com.streakguard.app.R
 
 /**
- * All notifications go through one high-importance channel ("potd_reminder").
+ * Countdown reminders use tier channels; test notifications use "potd_reminder".
  */
 class NotificationHelper(private val context: Context) {
 
@@ -113,19 +113,8 @@ class NotificationHelper(private val context: Context) {
         return id
     }
 
-    /** Optional confirmation posted when the challenge is already done. */
-    fun notifyDone(platformName: String, platformId: String) {
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("$platformName: streak safe")
-            .setContentText("Today's challenge is done. Nice work.")
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .build()
-        manager.notify(NOTIF_DONE_BASE + platformId.hashCode().and(0xFFF), notification)
-    }
-
     fun sendTest() {
+        if (!notificationsEnabled()) return
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("StreakGuard test notification")
@@ -135,10 +124,11 @@ class NotificationHelper(private val context: Context) {
         manager.notify(NOTIF_TEST, notification)
     }
 
+    fun cancelAll() = manager.cancelAll()
+
     companion object {
         const val CHANNEL_ID = "potd_reminder"
         private const val NOTIF_MISSED_BASE = 2000
-        private const val NOTIF_DONE_BASE = 3000
         private const val NOTIF_TEST = 9999
         private const val ALARM_RING_MILLIS = 5_000L
     }

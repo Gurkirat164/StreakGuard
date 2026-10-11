@@ -32,7 +32,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         private set
     var displayTimezone by mutableStateOf("UTC")
         private set
-    var confirmWhenDone by mutableStateOf(false)
+    var isClearing by mutableStateOf(false)
         private set
     var initialized by mutableStateOf(false)
         private set
@@ -51,21 +51,24 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     init {
         viewModelScope.launch {
             try {
-                val store = container.settingsStore
-                username = store.username("leetcode").first()
-                profileVerified = username.isNotBlank() && store.verifiedUsername("leetcode").first() == username
-                remindersEnabled = store.remindersEnabled.first()
-                hapticsEnabled = store.hapticsEnabled.first()
-                syncOnOpen = store.syncOnOpen.first()
-                syncInterval = store.syncInterval.first()
-                reminderHours = store.reminderHours.first()
-                displayTimezone = store.displayTimezone.first()
-                confirmWhenDone = store.confirmWhenDone.first()
+                loadSettings()
             } catch (_: Exception) { message = "Couldn't load settings. Please reopen this screen." }
             finally { initialized = true }
         }
     }
+    private suspend fun loadSettings() {
+        val store = container.settingsStore
+        username = store.username("leetcode").first()
+        profileVerified = username.isNotBlank() && store.verifiedUsername("leetcode").first() == username
+        remindersEnabled = store.remindersEnabled.first()
+        hapticsEnabled = store.hapticsEnabled.first()
+        syncOnOpen = store.syncOnOpen.first()
+        syncInterval = store.syncInterval.first()
+        reminderHours = store.reminderHours.first()
+        displayTimezone = store.displayTimezone.first()
+    }
     private fun edit(action: suspend () -> Unit) {
+        if (!initialized || isClearing) return
         viewModelScope.launch {
             edits.withLock {
                 try { action(); message = null }
@@ -104,8 +107,31 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setTimezone(value: String) = edit {
         container.settingsStore.setDisplayTimezone(value); displayTimezone = value
     }
-    fun onConfirmWhenDoneChange(value: Boolean) = edit {
-        container.settingsStore.setConfirmWhenDone(value); confirmWhenDone = value
+    fun clearData() {
+        if (!initialized || isClearing || isTesting) return
+        isClearing = true
+        viewModelScope.launch {
+            try {
+                edits.withLock {
+                    val workManager = androidx.work.WorkManager.getInstance(container.appContext())
+                    workManager.cancelAllWorkByTag("countdown_reminder")
+                    workManager.cancelUniqueWork("challenge_status_sync")
+                    container.alarmScheduler.cancel()
+                    container.checkOrchestrator.clearUserData()
+                    loadSettings()
+                    connectionOk = null
+                    connectionLatency = null
+                    container.syncScheduler.schedule(syncInterval)
+                    message = "Local data cleared."
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                message = "Couldn't clear local data. Please try again."
+            } finally {
+                isClearing = false
+            }
+        }
     }
     fun setTiers(hours: List<Int>): Boolean {
         if (!ReminderSchedule.valid(hours)) return false
@@ -117,7 +143,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         return true
     }
     fun testConnection() {
-        if (isTesting || username.isBlank()) return
+        if (isTesting || isClearing || username.isBlank()) return
         val handle = username
         isTesting = true
         viewModelScope.launch {

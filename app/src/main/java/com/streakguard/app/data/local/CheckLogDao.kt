@@ -11,6 +11,9 @@ interface CheckLogDao {
     @Insert
     suspend fun insert(log: CheckLog)
 
+    @Query("DELETE FROM check_log")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM check_log ORDER BY checkedAtEpoch DESC LIMIT :limit")
     fun getRecent(limit: Int): Flow<List<CheckLog>>
 

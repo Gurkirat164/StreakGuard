@@ -109,12 +109,11 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { it[onboardingKey] = value }
     }
 
-    // --- Optional "streak safe" confirmation when the challenge is done ---
-
-    val confirmWhenDone: Flow<Boolean> =
-        context.dataStore.data.map { it[booleanPreferencesKey("confirm_when_done")] ?: false }
-
-    suspend fun setConfirmWhenDone(value: Boolean) {
-        context.dataStore.edit { it[booleanPreferencesKey("confirm_when_done")] = value }
+    /** Clear local preferences without replaying first-install onboarding. */
+    suspend fun clearUserData() {
+        context.dataStore.edit {
+            it.clear()
+            it[onboardingKey] = true
+        }
     }
 }

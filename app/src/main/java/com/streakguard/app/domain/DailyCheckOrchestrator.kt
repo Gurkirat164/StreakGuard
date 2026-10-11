@@ -44,7 +44,6 @@ class DailyCheckOrchestrator(
      *   cache is updated but no notification is posted.
      */
     suspend fun runCheck(manual: Boolean, notify: Boolean = true, reminderTier: Int = 2): List<PlatformStatus> = checkMutex.withLock {
-        val confirmWhenDone = runCatching { settings.confirmWhenDone.first() }.getOrDefault(false)
         val today = TimeUtils.utcToday()
         val results = mutableListOf<PlatformStatus>()
 
@@ -109,8 +108,6 @@ class DailyCheckOrchestrator(
                     tier = reminderTier,
                     haptics = settings.hapticsEnabled.first(),
                 )
-            } else if (completed == true && confirmWhenDone && notifyAllowed) {
-                notifications.notifyDone(platform.displayName, platform.id)
             }
 
             results.add(
@@ -127,6 +124,13 @@ class DailyCheckOrchestrator(
             )
         }
         results
+    }
+
+    /** Serialize deletion with checks so an in-flight fetch cannot restore deleted data. */
+    suspend fun clearUserData() = checkMutex.withLock {
+        settings.clearUserData()
+        db.checkLogDao().deleteAll()
+        notifications.cancelAll()
     }
 
     companion object {

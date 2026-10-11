@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.LocalActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -15,7 +16,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +37,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -73,14 +77,21 @@ private val CountdownFont = FontFamily(
 private val CountdownDescriptionFont = FontFamily(Font(R.font.settings_nimbus_sans))
 private val Sunken = Color(0xFF0B101C)
 private val Critical = Color(0xFFEF4444)
+private val PermissionDescriptionFont = FontFamily(Font(R.font.settings_roboto_mono))
+private val SettingsCardFont = FontFamily(
+    Font(R.font.geist_regular, FontWeight.Normal),
+    Font(R.font.geist_medium, FontWeight.Medium),
+    Font(R.font.settings_geist_bold, FontWeight.Bold),
+)
 
 @Composable
 fun SettingsScreen(container: AppContainer) {
     val vm: SettingsViewModel = viewModel(factory = remember { SettingsViewModel.Factory(container) })
     val context = LocalContext.current
+    val activity = LocalActivity.current
     var editUsername by remember { mutableStateOf(false) }
     var editTiers by remember { mutableStateOf(false) }
-    var showOptions by remember { mutableStateOf(false) }
+    var confirmClear by remember { mutableStateOf(false) }
     var zoneExpanded by remember { mutableStateOf(false) }
     var notifGranted by remember { mutableStateOf(container.notificationHelper.notificationsEnabled()) }
     var exactGranted by remember { mutableStateOf(container.alarmScheduler.isExactAlarmAllowed()) }
@@ -97,8 +108,15 @@ fun SettingsScreen(container: AppContainer) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         notifGranted = container.notificationHelper.notificationsEnabled()
+        // Android stops showing the permission dialog after a permanent denial.
+        // Keep Grant useful by taking the user to the app's notification settings.
+        if (!granted && activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+        }
     }
     fun openNotificationSettings() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -154,25 +172,20 @@ fun SettingsScreen(container: AppContainer) {
             dismissButton = { TextButton(onClick = { editTiers = false }) { Text("Cancel") } },
         )
     }
-    if (showOptions) {
+    if (confirmClear) {
         AlertDialog(
-            onDismissRequest = { showOptions = false },
-            title = { Text("Notification options") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ToggleRow("Confirm when done", "Also notify when today's challenge is complete.", vm.confirmWhenDone,
-                    vm::onConfirmWhenDoneChange, vm.initialized)
-                TextButton(onClick = { openNotificationSettings() }) { Text(if (notifGranted) "Notification settings" else "Enable notifications") }
-                if (!exactGranted) TextButton(onClick = { openAlarmSettings() }) { Text("Allow exact reminders") }
-                OutlinedButton(enabled = notifGranted, onClick = { container.notificationHelper.sendTest() }) {
-                    Text("Send test notification")
-                }
+            onDismissRequest = { confirmClear = false },
+            title = { Text("Delete all your data?") },
+            text = { Text("This clears your saved username, settings, and local challenge history. Your LeetCode account is unaffected.") },
+            confirmButton = { TextButton(onClick = { confirmClear = false; vm.clearData() }) {
+                Text("Delete", color = Critical)
             } },
-            confirmButton = { TextButton(onClick = { showOptions = false }) { Text("Done") } },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
         )
     }
 
     val version = remember {
-        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.4.0"
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
     }
     val zone = vm.zone
     val now = Instant.now()
@@ -286,13 +299,6 @@ fun SettingsScreen(container: AppContainer) {
             Spacer(Modifier.height(12.dp))
             ToggleRow("Tactile Urgency Haptics", "Vibration pulse at T-${vm.reminderHours[1]}h and T-${vm.reminderHours[2]}h",
                 vm.hapticsEnabled, vm::setHaptics, vm.initialized)
-            if (vm.remindersEnabled && (!notifGranted || !exactGranted)) {
-                TextButton(onClick = { if (!notifGranted) openNotificationSettings() else openAlarmSettings() },
-                    contentPadding = PaddingValues(0.dp)) {
-                    Text(if (!notifGranted) "Enable notifications to receive reminders" else "Allow exact alarms for timely reminders",
-                        color = Tertiary, fontSize = 11.sp)
-                }
-            }
         }
         SettingsModule("Sync Interval", R.drawable.ic_settings_sync, "Every ${vm.syncInterval} min") {
             Spacer(Modifier.height(8.dp))
@@ -313,16 +319,41 @@ fun SettingsScreen(container: AppContainer) {
             Spacer(Modifier.height(8.dp))
             ToggleRow("Sync when app opens", "Trigger instant Sync", vm.syncOnOpen, vm::onSyncOnOpenChange, vm.initialized)
         }
-        vm.message?.let { Text(it, color = Tertiary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp)) }
-        // Preserve the existing options until their own design is approved.
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            TextButton(onClick = { showOptions = true }, contentPadding = PaddingValues(4.dp)) {
-                Text("Notification options", color = SettingsMuted, fontSize = 11.sp)
+        val missingPermissions = missingSettingsPermissions(notifGranted, exactGranted)
+        if (missingPermissions.isNotEmpty()) {
+            SettingsModule("Permissions", R.drawable.ic_settings_shield, contentSpacing = 20.5.dp,
+                headerFont = SettingsCardFont, headerBadge = { PermissionActionBadge() }) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    missingPermissions.forEach { permission ->
+                        when (permission) {
+                            SettingsPermission.NOTIFICATIONS -> SettingsActionRow(
+                                "Notifications", "Daily reminders", R.drawable.ic_settings_notification_important,
+                                Primary, "Grant", primaryAction = true, status = "NOT GRANTED", statusColor = Color(0xFFF87171),
+                                descriptionFont = PermissionDescriptionFont, onClick = ::openNotificationSettings)
+                            SettingsPermission.EXACT_ALARMS -> SettingsActionRow(
+                                "Exact alarms", "On-time reminders", R.drawable.ic_settings_alarm_on,
+                                SettingsAmber, "Enable", primaryAction = true, status = "DISABLED", statusColor = SettingsAmber,
+                                descriptionFont = PermissionDescriptionFont, onClick = ::openAlarmSettings)
+                        }
+                    }
+                }
             }
+        }
+        SettingsModule("Others", R.drawable.ic_settings_tune, contentSpacing = 14.dp, headerFont = SettingsCardFont) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SettingsActionRow("Send test notification", "Trigger instant test ping to verify", R.drawable.ic_settings_send,
+                    SettingsMuted, "Test", enabled = notifGranted, onClick = { container.notificationHelper.sendTest() })
+                SettingsActionRow("Delete all your data", "Clear local cache, stored", R.drawable.ic_settings_delete,
+                    Color(0xFFF87171), if (vm.isClearing) "Clearing…" else "Clear", destructive = true,
+                    enabled = vm.initialized && !vm.isClearing && !vm.isTesting, onClick = { confirmClear = true })
+            }
+        }
+        vm.message?.let { Text(it, color = Tertiary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp)) }
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("App version v$version", color = SettingsMuted, fontSize = 12.sp, lineHeight = 18.sp, letterSpacing = 0.sp)
             TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL))) }) {
                 Text("Privacy Policy", color = SettingsMuted, fontFamily = GeistFontFamily, fontSize = 13.sp,
-                    letterSpacing = 0.sp, textDecoration = TextDecoration.Underline)
+                    letterSpacing = 0.sp)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -330,19 +361,89 @@ fun SettingsScreen(container: AppContainer) {
 }
 
 @Composable
-private fun SettingsModule(title: String, icon: Int, caption: String? = null, content: @Composable ColumnScope.() -> Unit) {
+private fun SettingsModule(title: String, icon: Int, caption: String? = null,
+                           contentSpacing: Dp = 16.dp, headerBadge: (@Composable () -> Unit)? = null,
+                           headerFont: FontFamily = GeistFontFamily,
+                           content: @Composable ColumnScope.() -> Unit) {
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, if (icon == R.drawable.ic_settings_sync) SettingsButton else SettingsBorder),
         colors = CardDefaults.cardColors(containerColor = SettingsCard)) {
         Column(Modifier.padding(21.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DesignIcon(icon, Primary, if (icon == R.drawable.ic_settings_notifications_active) 24 else 20)
-                Text(title, color = Color.White, fontSize = 17.sp, lineHeight = 25.5.sp,
+                Text(title, color = Color.White, fontFamily = headerFont, fontSize = 17.sp, lineHeight = 25.5.sp,
                     fontWeight = FontWeight.Bold, letterSpacing = (-.17).sp, modifier = Modifier.weight(1f))
                 caption?.let { Mono(it, SettingsSafe, 12) }
+                headerBadge?.invoke()
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(contentSpacing))
             content()
+        }
+    }
+}
+
+@Composable
+private fun PermissionActionBadge() {
+    Box(Modifier.background(Critical.copy(alpha = .15f), RoundedCornerShape(999.dp))
+        .border(1.dp, Primary.copy(alpha = .3f), RoundedCornerShape(999.dp))
+        .padding(horizontal = 10.dp, vertical = 3.dp)) {
+        Text("ACTION REQUIRED", color = Primary, fontFamily = CountdownFont, fontSize = 11.sp,
+            lineHeight = 16.5.sp, fontWeight = FontWeight.Bold, letterSpacing = .55.sp,
+            maxLines = 1, softWrap = false)
+    }
+}
+
+@Composable
+private fun SettingsActionRow(
+    title: String, description: String, icon: Int, iconColor: Color, action: String,
+    primaryAction: Boolean = false, destructive: Boolean = false, enabled: Boolean = true,
+    status: String? = null, statusColor: Color = iconColor,
+    descriptionFont: FontFamily = GeistFontFamily, onClick: () -> Unit,
+) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 70.dp)
+        .background(Sunken, RoundedCornerShape(12.dp))
+        .border(1.dp, SettingsInset, RoundedCornerShape(12.dp)).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        val iconFill = when { primaryAction -> iconColor.copy(alpha = .1f)
+            destructive -> Critical.copy(alpha = .1f); else -> Color(0xFF141B2C) }
+        val iconBorder = when { primaryAction -> iconColor.copy(alpha = .25f)
+            destructive -> Critical.copy(alpha = .25f); else -> Color(0xFF1A2235) }
+        Box(Modifier.size(40.dp).background(iconFill, RoundedCornerShape(12.dp))
+            .border(1.dp, iconBorder, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+            DesignIcon(icon, iconColor, 24)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, color = Color.White, fontFamily = SettingsCardFont, fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp, lineHeight = 21.sp, letterSpacing = (-.35).sp,
+                    maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false))
+                status?.let {
+                    Text(it, color = statusColor, fontFamily = CountdownFont, fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp, lineHeight = 15.sp, letterSpacing = 0.sp,
+                        maxLines = 1, softWrap = false,
+                        modifier = Modifier.background(
+                            (if (statusColor == SettingsAmber) SettingsAmber else Critical).copy(alpha = .15f),
+                            RoundedCornerShape(2.dp)).padding(horizontal = 5.dp))
+                }
+            }
+            Text(description, color = SettingsTelemetry, fontFamily = descriptionFont, fontSize = 11.sp,
+                lineHeight = 15.1.sp, letterSpacing = 0.sp, maxLines = 1, softWrap = false,
+                overflow = TextOverflow.Ellipsis, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
+        }
+        Spacer(Modifier.width(10.dp))
+        val buttonShape = RoundedCornerShape(8.dp)
+        val buttonColor = when { primaryAction -> Primary; destructive -> Critical.copy(alpha = .15f); else -> SettingsButton }
+        Row(Modifier.background(buttonColor.copy(alpha = if (enabled) buttonColor.alpha else buttonColor.alpha * .5f), buttonShape)
+            .then(if (primaryAction) Modifier else Modifier.border(1.dp,
+                if (destructive) Critical.copy(alpha = .35f) else Color(0xFF242F47), buttonShape))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(action, color = (when { primaryAction -> SettingsThumb; destructive -> Color(0xFFF87171); else -> SettingsMuted })
+                .copy(alpha = if (enabled) 1f else .5f), fontFamily = SettingsCardFont,
+                fontWeight = if (primaryAction) FontWeight.Bold else FontWeight.Medium,
+                fontSize = 12.sp, lineHeight = 18.sp, letterSpacing = (-.12).sp, maxLines = 1, softWrap = false)
         }
     }
 }

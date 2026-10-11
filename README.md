@@ -14,8 +14,7 @@ At your chosen time each day, an exact alarm fires and the app:
 2. Checks your recent accepted submissions for that problem's `titleSlug`
 3. If there is no accepted submission since the start of the current UTC day → posts a
    notification; tapping it opens the problem in your browser
-4. If the POTD is done → stays silent (or sends a "streak safe" confirmation if you
-   enable it in Settings)
+4. If the POTD is done → stays silent
 
 Everything runs on-device. No server, no account, no API key — just your LeetCode username.
 
@@ -58,7 +57,7 @@ delivers `BOOT_COMPLETED` to apps that have been launched at least once).
 - `schedule/AlarmScheduler.kt` — exact daily alarm (`setExactAndAllowWhileIdle`)
 - `receiver/` — `DailyCheckReceiver` (runs the check, re-arms the alarm),
   `BootReceiver` (re-arms after reboot)
-- `notify/NotificationHelper.kt` — one notification channel, missed/done/test posts
+- `notify/NotificationHelper.kt` — countdown reminder channels and test notifications
 - `data/local/` — Room database (`check_log` history)
 - `data/prefs/SettingsStore.kt` — DataStore settings (per-platform usernames, check time)
 - `ui/` — Jetpack Compose screens: Home (status cards, "Check now") and Settings

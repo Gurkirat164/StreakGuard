@@ -27,7 +27,6 @@ the app keeps the last result instead of resetting.
 - `username_<platformId>` — public handle per platform
 - `enabled_<platformId>` — per-platform toggle (default true)
 - `check_hour` / `check_minute` — daily check time (default 21:00)
-- `confirm_when_done` — optional "done" notification (default false)
 
 ## Time rules
 
