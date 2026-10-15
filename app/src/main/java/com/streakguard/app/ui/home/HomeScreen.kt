@@ -25,7 +25,7 @@ import com.streakguard.app.ui.theme.TextMuted
 
 @Composable
 fun HomeScreen(container: AppContainer) {
-    // Shared with the LeetCode tab so both stay in sync.
+    // Activity-scoped so refresh-on-open and this page use the same state.
     val activity = LocalActivity.current as ComponentActivity
     val vm: HomeViewModel = viewModel(
         viewModelStoreOwner = activity,

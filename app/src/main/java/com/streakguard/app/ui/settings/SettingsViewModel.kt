@@ -83,6 +83,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         }
         edit {
             container.settingsStore.setUsername("leetcode", handle)
+            container.challengeAlarm.stop()
             container.settingsStore.setEnabled("leetcode", true)
             username = handle; profileVerified = false; connectionOk = null; connectionLatency = null
             container.alarmScheduler.rescheduleFromSettings()
@@ -92,6 +93,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setReminders(value: Boolean) = edit {
         container.settingsStore.setRemindersEnabled(value); remindersEnabled = value
         if (!value) androidx.work.WorkManager.getInstance(container.appContext()).cancelAllWorkByTag("countdown_reminder")
+        if (!value) container.challengeAlarm.stop()
         container.alarmScheduler.rescheduleFromSettings()
     }
     fun setHaptics(value: Boolean) = edit {
@@ -137,6 +139,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         if (!ReminderSchedule.valid(hours)) return false
         edit {
             container.settingsStore.setReminderHours(hours); reminderHours = hours
+            container.challengeAlarm.stop()
             androidx.work.WorkManager.getInstance(container.appContext()).cancelAllWorkByTag("countdown_reminder")
             container.alarmScheduler.rescheduleFromSettings()
         }

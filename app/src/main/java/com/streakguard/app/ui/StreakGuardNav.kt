@@ -3,7 +3,6 @@ package com.streakguard.app.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -21,7 +20,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.streakguard.app.di.AppContainer
 import com.streakguard.app.ui.home.HomeScreen
-import com.streakguard.app.ui.leetcode.LeetCodeScreen
 import com.streakguard.app.ui.settings.SettingsScreen
 import com.streakguard.app.ui.theme.Primary
 
@@ -29,7 +27,6 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val Tabs = listOf(
     Tab("today", "Today", Icons.Filled.DateRange),
-    Tab("leetcode", "LeetCode", Icons.Filled.List),
     Tab("settings", "Settings", Icons.Filled.Settings),
 )
 
@@ -71,7 +68,6 @@ fun StreakGuardNav(container: AppContainer) {
             modifier = Modifier.padding(padding),
         ) {
             composable("today") { HomeScreen(container = container) }
-            composable("leetcode") { LeetCodeScreen(container = container) }
             composable("settings") { SettingsScreen(container = container) }
         }
     }

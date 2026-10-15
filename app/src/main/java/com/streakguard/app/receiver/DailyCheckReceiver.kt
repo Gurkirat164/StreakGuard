@@ -10,9 +10,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import com.streakguard.app.util.TimeUtils
-import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
@@ -35,11 +33,15 @@ class DailyCheckReceiver : BroadcastReceiver() {
                     app.container.settingsStore.remindersEnabled.first()) {
                     // Queue the network work outside the receiver's short execution window.
                     val work = OneTimeWorkRequestBuilder<ReminderCheckWorker>()
+                        .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                         .addTag("countdown_reminder")
-                        .setInputData(workDataOf("tier" to tier, "day" to day))
-                        .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                        .setInputData(workDataOf("tier" to tier, "day" to day,
+                            "attempt" to intent.getIntExtra("attempt", 0),
+                            "signature" to intent.getStringExtra("signature")))
                         .build()
-                    WorkManager.getInstance(context).enqueueUniqueWork("reminder_${day}_$tier", ExistingWorkPolicy.KEEP, work)
+                    val attempt = intent.getIntExtra("attempt", 0)
+                    val signature = intent.getStringExtra("signature").orEmpty().hashCode()
+                    WorkManager.getInstance(context).enqueueUniqueWork("reminder_${day}_${tier}_${attempt}_$signature", ExistingWorkPolicy.KEEP, work)
                 }
             } finally {
                 runCatching { app.container.alarmScheduler.rescheduleFromSettings() }

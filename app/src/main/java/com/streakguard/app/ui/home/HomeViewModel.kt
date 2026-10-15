@@ -123,7 +123,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             isChecking = true
             errorMessage = null
             try {
-                val results = container.checkOrchestrator.runCheck(manual = true, notify = false)
+                val results = container.checkOrchestrator.runCheck(manual = true)
                 // Re-read what was just persisted: single source of truth.
                 loadFromCache()
                 when {

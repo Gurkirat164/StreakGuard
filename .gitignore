@@ -5,3 +5,7 @@
 .DS_Store
 /build
 /app/build
+
+# Android App Bundles and accidental .abb output names
+*.aab
+*.abb

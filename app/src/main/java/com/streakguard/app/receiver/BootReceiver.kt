@@ -25,6 +25,7 @@ class BootReceiver : BroadcastReceiver() {
             try {
                 app.container.alarmScheduler.rescheduleFromSettings()
                 app.container.alarmScheduler.scheduleMidnightRefresh()
+                if (intent.action != Intent.ACTION_TIMEZONE_CHANGED) app.container.challengeAlarm.restore()
                 app.container.syncScheduler.schedule(app.container.settingsStore.syncInterval.first())
             } finally {
                 pending.finish()

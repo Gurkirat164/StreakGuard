@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             runCatching { container.alarmScheduler.scheduleMidnightRefresh() }
             runCatching { container.alarmScheduler.rescheduleFromSettings() }
+            runCatching { container.challengeAlarm.restore() }
             runCatching { container.syncScheduler.schedule(container.settingsStore.syncInterval.first()) }
         }
 

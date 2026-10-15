@@ -43,6 +43,8 @@ class AppContainer(context: Context) {
     }
 
     val settingsStore: SettingsStore by lazy { SettingsStore(appContext) }
+    val reminderState by lazy { com.streakguard.app.schedule.ReminderState(appContext) }
+    val challengeAlarm by lazy { com.streakguard.app.notify.ChallengeAlarm(appContext) }
 
     val database: AppDatabase by lazy { AppDatabase.getInstance(appContext) }
 
@@ -57,6 +59,8 @@ class AppContainer(context: Context) {
             settings = settingsStore,
             db = database,
             notifications = notificationHelper,
+            reminderState = reminderState,
+            alarm = challengeAlarm,
         )
     }
 }

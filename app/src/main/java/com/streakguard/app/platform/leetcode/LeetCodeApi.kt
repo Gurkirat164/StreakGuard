@@ -88,10 +88,11 @@ class LeetCodeApi(private val client: OkHttpClient) {
     suspend fun getRecentSubmissions(username: String, limit: Int = 20): List<Submission>? {
         val query = """{ recentAcSubmissionList(username: "${safeUsername(username)}", limit: $limit) { titleSlug timestamp } }"""
         val root = postGraphql(query) ?: return null
+        if (root.has("errors")) return null
         return runCatching {
             val arr = root.getJSONObject("data").optJSONArray("recentAcSubmissionList")
-                ?: return@runCatching emptyList<Submission>()
-            buildList {
+                ?: return@runCatching null
+            buildList<Submission> {
                 for (i in 0 until arr.length()) {
                     val obj = arr.optJSONObject(i) ?: continue
                     val slug = obj.optString("titleSlug", "")

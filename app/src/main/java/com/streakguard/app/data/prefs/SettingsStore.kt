@@ -9,7 +9,6 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -69,25 +68,6 @@ class SettingsStore(private val context: Context) {
     suspend fun setUsername(platformId: String, value: String) {
         context.dataStore.edit { it[stringPreferencesKey("username_$platformId")] = value }
     }
-
-    // --- Daily check time (24h) ---
-
-    val checkHour: Flow<Int> =
-        context.dataStore.data.map { it[intPreferencesKey("check_hour")] ?: 21 }
-
-    val checkMinute: Flow<Int> =
-        context.dataStore.data.map { it[intPreferencesKey("check_minute")] ?: 0 }
-
-    suspend fun setCheckTime(hour: Int, minute: Int) {
-        context.dataStore.edit {
-            it[intPreferencesKey("check_hour")] = hour
-            it[intPreferencesKey("check_minute")] = minute
-        }
-    }
-
-    suspend fun getCheckHour(): Int = checkHour.first()
-
-    suspend fun getCheckMinute(): Int = checkMinute.first()
 
     // --- Per-platform enabled toggle ---
 

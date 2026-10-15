@@ -27,7 +27,6 @@ class MidnightRefreshReceiver : BroadcastReceiver() {
             try {
                 val results = app.container.checkOrchestrator.runCheck(
                     manual = false,
-                    notify = false,
                 )
                 if (attempt == 0) {
                     // The midnight tick: re-arm for the next UTC midnight.

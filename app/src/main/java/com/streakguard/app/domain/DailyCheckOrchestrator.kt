@@ -14,16 +14,16 @@ import kotlinx.coroutines.CancellationException
 
 /**
  * Runs the daily check for every enabled platform that has a username set:
- * fetch today's challenge, determine completion, log it, and notify when needed.
- *
- * A platform whose status can't be determined (network error, bad username)
- * is logged as "unknown" and never triggers a notification.
+ * fetch today's challenge, determine completion, and preserve the latest known data.
+ * Scheduled notifications and bounded retries are owned by ReminderCheckWorker.
  */
 class DailyCheckOrchestrator(
     private val registry: PlatformRegistry,
     private val settings: SettingsStore,
     private val db: AppDatabase,
     private val notifications: NotificationHelper,
+    private val reminderState: com.streakguard.app.schedule.ReminderState,
+    private val alarm: com.streakguard.app.notify.ChallengeAlarm,
 ) {
     private val checkMutex = Mutex()
 
@@ -39,11 +39,7 @@ class DailyCheckOrchestrator(
         val questionNumber: String?,
     )
 
-    /**
-     * @param notify when false the check is silent (background refresh):
-     *   cache is updated but no notification is posted.
-     */
-    suspend fun runCheck(manual: Boolean, notify: Boolean = true, reminderTier: Int = 2): List<PlatformStatus> = checkMutex.withLock {
+    suspend fun runCheck(manual: Boolean): List<PlatformStatus> = checkMutex.withLock {
         val today = TimeUtils.utcToday()
         val results = mutableListOf<PlatformStatus>()
 
@@ -79,36 +75,25 @@ class DailyCheckOrchestrator(
                 // Never let a failed check wipe out today's good data: only
                 // persist when we learned something or nothing was stored yet.
                 val existing = db.checkLogDao().getForDate(platform.id, today)
+                    .takeIf { settings.checkedUsername(platform.id).first() == username }
                 if (fetchedAnything || existing == null) {
                     db.checkLogDao().insert(
                         CheckLog(
                             platformId = platform.id,
                             date = today,
-                            completed = completed == true,
-                            known = completed != null,
+                            completed = completed ?: existing?.completed ?: false,
+                            known = completed != null || existing?.known == true,
                             checkedAtEpoch = System.currentTimeMillis(),
-                            challengeTitle = challengeTitle,
-                            challengeUrl = challengeUrl,
-                            streak = streak,
-                            difficulty = difficulty,
-                            questionNumber = questionNumber,
+                            challengeTitle = challengeTitle ?: existing?.challengeTitle,
+                            challengeUrl = challengeUrl ?: existing?.challengeUrl,
+                            streak = streak ?: existing?.streak,
+                            difficulty = difficulty ?: existing?.difficulty,
+                            questionNumber = questionNumber ?: existing?.questionNumber,
                         )
                     )
                     settings.setCheckedUsername(platform.id, username)
                 }
             }.onFailure { Log.w(TAG, "Failed to log check for ${platform.id}", it) }
-
-            val notifyAllowed = notify && settings.remindersEnabled.first() && today == TimeUtils.utcToday()
-            if (notifyAllowed && completed == false) {
-                notifications.notifyMissed(
-                    platformName = platform.displayName,
-                    platformId = platform.id,
-                    challengeTitle = challengeTitle ?: "Today's challenge",
-                    challengeUrl = challengeUrl ?: "https://leetcode.com",
-                    tier = reminderTier,
-                    haptics = settings.hapticsEnabled.first(),
-                )
-            }
 
             results.add(
                 PlatformStatus(
@@ -122,6 +107,11 @@ class DailyCheckOrchestrator(
                     questionNumber = questionNumber,
                 )
             )
+            if (completed == true) alarm.stopFor(platform.id, today)
+        }
+        if (results.isNotEmpty() && results.all { it.completed != null }) {
+            reminderState.recovered()
+            notifications.cancelFailure()
         }
         results
     }
@@ -131,6 +121,8 @@ class DailyCheckOrchestrator(
         settings.clearUserData()
         db.checkLogDao().deleteAll()
         notifications.cancelAll()
+        reminderState.clear()
+        alarm.stop()
     }
 
     companion object {

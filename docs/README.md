@@ -8,3 +8,4 @@ Everything the app currently does — no future plans, no vision docs.
 - [Design system](design-system.md) — color palette, fonts, components
 - [Data & storage](data-storage.md) — what's stored on device, Room schema, settings, time rules
 - [Building](building.md) — how to build the APK
+- [Versioning](versioning.md) — patch/minor bumps and required user confirmation
