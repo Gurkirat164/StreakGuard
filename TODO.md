@@ -1,20 +1,33 @@
 # TODO
 
+Use these numbers when referring to tasks (for example, TODO 7 or TODO 8.2). Keep existing numbers stable; append new tasks with the next unused number.
+
 Timezone changes have been reverted at the user's request. The original selector, defaults, formatting, and single-line time/timezone layout are restored. Wait for the user's revised design before implementing timezone work again. Audible playback, notification actions, and layout still need verification on a physical device or emulator.
 
-- [x] Completely remove the LeetCode page and its navigation entry. Keep only the Today and Settings pages for now.
-- [x] Implement StreakGuard's own scheduled alarm with a custom sound and Stop/Snooze controls.
-  - Ring for 60 seconds with Stop and 10-minute Snooze controls. Stop dismisses the current alarm and cancels its pending repeats; Snooze rings again after 10 minutes.
-  - If the user does not stop or snooze the alarm within 60 seconds, stop the sound and automatically ring again 10 minutes later. Allow at most three ringing sessions total per alarm occurrence, including the initial ring and any snoozed or unattended repeats. Stop must immediately silence the alarm and cancel all remaining repeats; after the third session, do not ring again for that occurrence.
-- [ ] Automatically detect the device's timezone and schedule notification times accordingly. Recalculate future notification times immediately when the applicable timezone changes, without repeating notifications already sent. Implementation reverted; await the user's revised instructions.
-- [ ] Improve timezone switching and shortcode display. The previous implementation was reverted; await the user's revised dropdown and display design. Keep the time and timezone together on the same line; do not split them into separate rows or disrupt neighboring text.
-- [ ] Add a separate block in Settings for timezone settings.
-- [ ] Add a separate block in Settings for alarm settings.
-- [ ] Add dedicated alarm enable/disable toggle options before re-enabling ringing. Alarms are currently hard-disabled by `AlarmFeature.ENABLED = false`; keep this false until the settings controls exist and the user explicitly approves enabling alarms. Ordinary reminder notifications and API retries remain active.
-- [x] Remove the current alarm implementation once the new alarm system is in place.
-- [x] Handle API fetch failures at scheduled notification times with a single failure notice and bounded retries:
-  - Show an appropriate message for the failure, such as "No internet connection. We'll check again in 10 minutes."
-  - Send the failure notice only once per continuous outage, across notification stages and retries. Reset eligibility for a new failure notice only after a successful API fetch ends the outage.
-  - For the first two stages, retry the API fetch every 10 minutes, stopping on success or 30 minutes before the next notification stage's scheduled time, whichever comes first. Do not schedule retries at or after that cutoff.
-  - Skip an unsuccessful notification stage once its retry window ends. Never send a delayed earlier-stage notification during a later stage; let the next stage run at its own scheduled time.
-  - For the final stage, retry the API fetch three times at 10-minute intervals after the initial failed fetch (+10, +20, and +30 minutes). If the third retry also fails, trigger an alarm when the last known question status is unsolved or unknown; do not trigger it when the last known status is solved. Apply the maximum of three ringing sessions and immediate Stop behavior above.
+1. [x] Completely remove the LeetCode page and its navigation entry. Keep only the Today and Settings pages for now.
+2. [x] Implement StreakGuard's own scheduled alarm with a custom sound and Stop/Snooze controls.
+    - **2.1** Ring for 60 seconds with Stop and 10-minute Snooze controls. Stop dismisses the current alarm and cancels its pending repeats; Snooze rings again after 10 minutes.
+    - **2.2** If the user does not stop or snooze the alarm within 60 seconds, stop the sound and automatically ring again 10 minutes later. Allow at most three ringing sessions total per alarm occurrence, including the initial ring and any snoozed or unattended repeats. Stop must immediately silence the alarm and cancel all remaining repeats; after the third session, do not ring again for that occurrence.
+3. [ ] Automatically detect the device's timezone and schedule notification times accordingly. Recalculate future notification times immediately when the applicable timezone changes, without repeating notifications already sent. Implementation reverted; await the user's revised instructions.
+4. [ ] Improve timezone switching and shortcode display. The previous implementation was reverted; await the user's revised dropdown and display design. Keep the time and timezone together on the same line; do not split them into separate rows or disrupt neighboring text.
+5. [ ] Add a separate block in Settings for timezone settings.
+6. [x] Add a separate block in Settings for alarm settings. Implemented from Figma V2 with a bold clock icon and an off, disabled ringing switch; enabling ringing still requires approval (TODO 9).
+7. [ ] Address Play Console's low DEX code optimisation finding before the displayed February 2027 deadline. Enable R8 code optimisation and resource shrinking for release builds, review any necessary keep rules, retain/include the mapping file for crash reports, and test the optimised release's reminders, background workers, and database access. Recheck Play Console's optimisation metrics after uploading the new bundle.
+    - **7.1** [x] Enable R8/resource shrinking, preserve persisted worker names and Room entry points, keep bundled licenses, and archive release mappings with version/code. Bundles include the mapping.
+    - **7.2** [x] Validate the R8-optimized QA build on API 37: Room persistence, reflective worker startup, reminder retry/poll cancellation, solved-day suppression, account changes, UTC rollover, and process restart passed. See `docs/building.md` for the isolated `.qa` smoke runner.
+    - **7.3** [ ] Upload the signed production bundle and recheck Play Console metrics. This external verification remains open.
+8. [ ] Fix Play Console's related edge-to-edge findings together:
+    - **8.1** [x] Set up consistent edge-to-edge rendering with AndroidX, safe-drawing/system-bar/display-cutout insets on Today, Settings, navigation, and splash content. Consume content insets once.
+    - **8.2** [x] Remove the deprecated status-bar/navigation-bar color setters from `Theme.kt`. MainActivity owns edge-to-edge and light icons through AndroidX.
+    - **8.3** [ ] Verify layout on Android 15 and newer, as well as supported older versions, with gesture and three-button navigation. API 37 Today, Settings, and footer checks passed in gesture and three-button modes with readable icons and no duplicated insets. Only API 37 is installed here; Android 15 and older-device/splash visual checks remain open.
+9. [ ] Obtain explicit approval and verify alarm playback before re-enabling ringing. The dedicated Settings toggle is implemented but disabled. Alarms are currently hard-disabled by `AlarmFeature.ENABLED = false`; keep this false until the settings controls exist and the user explicitly approves enabling alarms. Ordinary reminder notifications and API retries remain active.
+10. [x] Remove the current alarm implementation once the new alarm system is in place.
+11. [x] Handle API fetch failures at scheduled notification times with a single failure notice and bounded retries:
+    - **11.1** Show an appropriate message for the failure, such as "No internet connection. We'll check again in 10 minutes."
+    - **11.2** Send the failure notice only once per continuous outage, across notification stages and retries. Reset eligibility for a new failure notice only after a successful API fetch ends the outage.
+    - **11.3** For the first two stages, retry the API fetch every 10 minutes, stopping on success or 30 minutes before the next notification stage's scheduled time, whichever comes first. Do not schedule retries at or after that cutoff.
+    - **11.4** Skip an unsuccessful notification stage once its retry window ends. Never send a delayed earlier-stage notification during a later stage; let the next stage run at its own scheduled time.
+    - **11.5** For the final stage, retry the API fetch three times at 10-minute intervals after the initial failed fetch (+10, +20, and +30 minutes). If the third retry also fails, trigger an alarm when the last known question status is unsolved or unknown; do not trigger it when the last known status is solved. Apply the maximum of three ringing sessions and immediate Stop behavior above.
+12. [x] Once the question is confirmed solved, stop automatic/manual platform fetches, ordinary reminders, retry alarms, and periodic polling until the UTC day ends. Persist completion per account/day across restart; keep cached data visible and tomorrow's reminders/midnight refresh armed. Verified with 24 unit tests and the optimized device smoke/restart checks. Explicit Settings test-notification/profile-test actions remain user-controlled.
+13. [x] Add Debug below Privacy Policy with timestamped local event/settings/permission/notification-result logs, a seven-day/10 MB rolling limit, confirmed Share/Clear actions, a private ZIP export, and no API responses or usernames. Collection/access and delivery are separate policies/interfaces for future removal, cohorts, or uploads. Verified with 34 unit tests, optimized device smoke checks, and the Share/Clear UI flows. See `docs/diagnostics.md`.
+14. [] Make system time format default

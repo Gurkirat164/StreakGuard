@@ -2,6 +2,8 @@ package com.streakguard.app.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,6 +28,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         val container: AppContainer = (application as StreakGuardApp).container
 
         // Keep the silent midnight refresh armed (cheap, idempotent).
@@ -72,6 +78,8 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         val container = (application as StreakGuardApp).container
+        com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.APP_OPENED)
+        container.diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.PERMISSIONS_SNAPSHOT, container.diagnostics.permissionFields())
         ViewModelProvider(this, HomeViewModel.Factory(container))[HomeViewModel::class.java].refreshOnOpen()
     }
 }

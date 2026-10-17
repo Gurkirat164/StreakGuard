@@ -14,18 +14,18 @@ object ReminderPolicy {
     fun reset(day: String): Instant = LocalDate.parse(day).plusDays(1)
         .atStartOfDay(ZoneOffset.UTC).toInstant()
 
-    fun trigger(day: String, hours: List<Int>, tier: Int): Instant =
-        reset(day).minusSeconds(hours[tier] * 3600L)
+    fun trigger(day: String, minutes: List<Int>, tier: Int): Instant =
+        reset(day).minusSeconds(minutes[tier] * 60L)
 
-    fun cutoff(day: String, hours: List<Int>, tier: Int): Instant =
-        if (tier < 2) trigger(day, hours, tier + 1).minusSeconds(1800) else reset(day)
+    fun cutoff(day: String, minutes: List<Int>, tier: Int): Instant =
+        if (tier < 2) trigger(day, minutes, tier + 1).minusSeconds(1800) else reset(day)
 
-    fun active(now: Instant, day: String, hours: List<Int>, tier: Int): Boolean =
-        tier in 0..2 && !now.isBefore(trigger(day, hours, tier)) && now.isBefore(cutoff(day, hours, tier))
+    fun active(now: Instant, day: String, minutes: List<Int>, tier: Int): Boolean =
+        tier in 0..2 && !now.isBefore(trigger(day, minutes, tier)) && now.isBefore(cutoff(day, minutes, tier))
 
-    fun nextRetry(now: Instant, day: String, hours: List<Int>, tier: Int, attempt: Int): Instant? {
+    fun nextRetry(now: Instant, day: String, minutes: List<Int>, tier: Int, attempt: Int): Instant? {
         if (tier == 2 && attempt >= MAX_FINAL_RETRIES) return null
-        return now.plusSeconds(RETRY_SECONDS).takeIf { active(it, day, hours, tier) }
+        return now.plusSeconds(RETRY_SECONDS).takeIf { active(it, day, minutes, tier) }
     }
 
     fun shouldRingAfterFailure(tier: Int, attempt: Int, lastCompleted: Boolean?): Boolean =

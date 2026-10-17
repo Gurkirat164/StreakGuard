@@ -44,4 +44,32 @@ captions, buttons and timers via `JetBrainsMonoFontFamily`.
 - **Status banner** — platform card: icon tile, name + status pill
   (SOLVED = secondary, PENDING = tertiary, UNKNOWN = muted), mono inspection
   line, SOLVE NOW button (primary), "day closes in" live countdown strip.
-- **Bottom nav** — Today / LeetCode / Settings.
+- **Bottom nav** — Today / Settings. The former LeetCode detail tab has been removed.
+
+## Settings-specific styling
+
+Settings uses its own scoped palette in `ui/settings/SettingsScreen.kt`, including
+canvas `#0D1320`, cards `#121826`, inset surfaces `#192033`, and text `#F1F5F9`.
+It does not use the shared palette for every surface.
+
+| Role | Typeface / resource |
+|------|---------------------|
+| Settings cards/actions | Geist regular, medium, and `settings_geist_bold.ttf` |
+| Countdown badges | Liberation Mono regular/bold |
+| Reminder times and popup labels | JetBrains Mono, with bold clock values |
+| Countdown descriptions | Nimbus Sans |
+| Permission descriptions | Roboto Mono |
+
+Settings modules include LeetCode Connection, Streak Reminders, Sync Interval,
+a conditional Permissions block, and Others. The permission block lists only
+missing notification/exact-alarm access. The reminder timezone selector remains
+inside Streak Reminders, and reminder times keep time and timezone on one line.
+Alarm Settings has a bold outlined clock icon, OFF badge, disabled ringing toggle, and availability note. A compact 12 hr / 24 hr segmented control is first under Others, with the same 40 dp icon tile and text alignment as adjacent action rows. Reminder clock values are bold in their tier colors; timezone suffixes stay regular in `#94A3B8`.
+
+The custom notification-time popup shares the Streak Reminders icon, 16 dp card corners, dark inset rows, and monospaced bold time values. Cancel and Save have equal widths and 36 dp visible heights. It opens native time pickers. The shared screen background extends through the version/privacy footer. A separate timezone block remains pending; see [TODO.md](../TODO.md).
+
+Bundled font/icon licences and asset-source notes live in `res/raw/`.
+MainActivity configures edge-to-edge with AndroidX and light system icons.
+The root Scaffold owns safe-drawing padding and consumes it before screen content;
+the navigation bar owns its bottom insets. Splash content uses safe-drawing padding.
+Remaining OS/navigation-mode verification is tracked in TODO 8.3.

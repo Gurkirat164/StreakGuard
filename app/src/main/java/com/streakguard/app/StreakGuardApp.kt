@@ -11,5 +11,6 @@ class StreakGuardApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        com.streakguard.app.diagnostics.Diagnostics.install(container.diagnostics)
     }
 }

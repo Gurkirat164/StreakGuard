@@ -46,6 +46,8 @@ class LeetCodeApi(private val client: OkHttpClient) {
     }
 
     private suspend fun postGraphql(query: String): JSONObject? = withContext(Dispatchers.IO) {
+        val started = android.os.SystemClock.elapsedRealtime()
+        com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.API_STARTED, "api" to "leetcode_graphql")
         runCatching {
             val body = JSONObject().put("query", query).toString().toRequestBody(JSON_MEDIA_TYPE)
             val request = Request.Builder()
@@ -55,10 +57,17 @@ class LeetCodeApi(private val client: OkHttpClient) {
                 .header("Referer", "https://leetcode.com/")
                 .build()
             client.newCall(request).execute().use { response ->
+                com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.API_FINISHED,
+                    "api" to "leetcode_graphql", "http_status" to response.code,
+                    "duration_ms" to android.os.SystemClock.elapsedRealtime() - started)
                 if (!response.isSuccessful) return@runCatching null
                 val text = response.body?.string() ?: return@runCatching null
                 JSONObject(text)
             }
+        }.onFailure {
+            com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.API_FAILED,
+                "api" to "leetcode_graphql", "error_type" to it.javaClass.simpleName,
+                "duration_ms" to android.os.SystemClock.elapsedRealtime() - started)
         }.getOrNull()
     }
 

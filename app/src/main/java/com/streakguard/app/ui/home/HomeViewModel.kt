@@ -65,7 +65,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                         container.settingsStore.username(platform.id),
                         container.settingsStore.checkedUsername(platform.id),
                         container.database.checkLogDao().getRecent(1),
-                    ) { _, _, _ -> Unit }.collect { loadFromCache() }
+                        container.settingsStore.use24HourTime,
+                    ) { _, _, _, _ -> Unit }.collect { loadFromCache() }
                 }
             }
         }
@@ -89,14 +90,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             cached?.checkedAtEpoch?.let { epoch ->
                 if (latestEpoch == null || epoch > latestEpoch!!) latestEpoch = epoch
             }
-            val known = cached?.known == true
+            val completedDay = container.settingsStore.isCompleted(platform.id, todayUtc)
+            val known = completedDay || cached?.known == true
             PlatformUiState(
                 platformId = platform.id,
                 displayName = platform.displayName,
                 username = username,
                 challengeTitle = cached?.challengeTitle,
                 challengeUrl = cached?.challengeUrl,
-                completed = if (known) cached!!.completed else null,
+                completed = if (completedDay) true else if (known) cached?.completed else null,
                 streak = cached?.streak ?: latest?.streak,
                 difficulty = cached?.difficulty,
                 questionNumber = cached?.questionNumber,
@@ -105,7 +107,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             )
         }
         lastCheckedText = latestEpoch?.let {
-            "Last checked " + TimeUtils.formatLocalTime(container.appContext(), it)
+            "Last checked " + TimeUtils.formatLocalTime(container.appContext(), it,
+                container.settingsStore.use24HourTime.first())
         }
     }
 

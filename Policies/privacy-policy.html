@@ -19,50 +19,57 @@
 <body>
 
 <h1>Privacy Policy for StreakGuard</h1>
-<p class="meta"><strong>Effective date:</strong> October 1, 2026</p>
+<p class="meta"><strong>Effective date:</strong> October 18, 2026</p>
 
 <p>StreakGuard ("the app") is a personal daily-challenge reminder app for Android.
 It checks whether you completed the daily coding challenge on platforms you
-configure (e.g. LeetCode) and notifies you at a time you choose if you have not.
+configure (currently LeetCode) and sends reminders before the daily UTC reset if you have not.
 This policy explains what data the app handles and how.</p>
 
 <h2>1. Data stored on your device</h2>
-<p>The app stores the following <strong>only on your device</strong>, in Android's
+<p>The app stores the following <strong>locally</strong>, in Android's
 private app storage. We operate no servers, so this data is never uploaded to us:</p>
 <ul>
   <li>The platform usernames you enter (e.g. your LeetCode username).</li>
-  <li>Your chosen daily check time and notification preferences.</li>
+  <li>Your custom reminder times, display timezone, 12/24-hour time format, notification/haptics and alarm preferences, sync interval, and sync-on-open preference.</li>
   <li>A history of daily checks (date, platform, and whether the challenge was
-      marked complete).</li>
+      marked complete), cached challenge details (title, link, difficulty, question number), streak values, and check timestamps.</li>
+  <li>Profile-verification and onboarding state, reminder delivery/retry/outage state, and any stored alarm occurrence state. Alarm ringing is currently disabled.</li>
 </ul>
+
+<p>Android backup is enabled for the app. Depending on your Android and device settings, the system may back up or restore app data. StreakGuard does not operate that backup service.</p>
 
 <h2>2. Network requests</h2>
 <p>To check your challenge status, the app queries the public APIs of the platforms
-you enable (currently <code>leetcode.com</code>). These requests necessarily include
-the username you entered, so the platform can return your public challenge data.
-This is governed by that platform's own privacy policy
+you enable (currently <code>leetcode.com</code>). Requests for your profile and submission data include the username you entered so the platform can return your public challenge data. Requests for the daily challenge do not require your username.
+Requests can run during manual checks, configured reminder stages and retries, periodic background sync, app-open sync when enabled, and the UTC-midnight refresh. Network connections also expose ordinary connection information, such as your IP address, to the receiving platform. This is governed by that platform's own privacy policy
 (e.g. LeetCode's). No login credentials are ever requested or stored.</p>
 
 <h2>3. Permissions used and why</h2>
 <ul>
   <li><strong>Notifications</strong> &ndash; to deliver your daily reminder.</li>
   <li><strong>Alarms &amp; reminders (exact alarms)</strong> &ndash; to trigger the
-      daily check at the exact time you set.</li>
-  <li><strong>Run at startup</strong> &ndash; to restore your daily alarm after a
+      reminder checks at your chosen offsets before the UTC reset and refresh data at UTC midnight.</li>
+  <li><strong>Run at startup</strong> &ndash; to restore scheduled reminders and refreshes after a
       device reboot.</li>
   <li><strong>Internet access</strong> &ndash; to query the platforms' public
       challenge APIs.</li>
+  <li><strong>Network state</strong> &ndash; to check connectivity and constrain background sync.</li>
+  <li><strong>Vibration</strong> &ndash; for reminder haptics when enabled.</li>
+  <li><strong>Foreground service/media playback and wake lock</strong> &ndash; declared for background processing and the bundled ringing implementation. Alarm ringing is currently disabled in code.</li>
 </ul>
 
 <h2>4. Data sharing</h2>
-<p>We do not sell, share, or transfer your data to any third party. The app contains
+<p>We do not sell your data or upload it to a StreakGuard server. As described above, the app sends your public username to LeetCode to obtain challenge data, and Android may handle system backups. The app contains
 no analytics SDKs, no advertising, and no tracking of any kind.</p>
 
 <h2>5. Data retention and deletion</h2>
-<p>Your data remains on your device until you remove it. Uninstalling the app, or
-using <em>Settings &gt; Apps &gt; StreakGuard &gt; Storage &gt; Clear data</em>,
-permanently deletes everything the app stored.</p>
+<p>You can use <em>StreakGuard Settings &gt; Others &gt; Delete all your data</em> to clear saved usernames, preferences, challenge history, and reminder/alarm state. The app retains an onboarding-complete flag so first-install onboarding does not replay, and restores default periodic sync settings. No platform checks run without a configured username. Your LeetCode account is unaffected. Uninstalling the app or using <em>Android Settings &gt; Apps &gt; StreakGuard &gt; Storage &gt; Clear data</em> removes local app data. System backups, if present, are managed separately through your device or backup-provider settings.</p>
 
+<h2>Debug diagnostics</h2>
+<p>The Debug option below Privacy Policy in the app's Settings provides local diagnostic logs. Records include timestamps, app events, scheduling/check/retry outcomes, notification posting results, non-identifying app settings, permission/channel status, Android/app version, manufacturer/model, timezone, network connectivity status, and battery-saving status. Logs do not contain API responses, GraphQL queries, usernames, passwords, tokens, or persistent device identifiers. Notification posting success does not guarantee that Android displayed or sounded the notification.</p>
+<p>Retained event logs are limited to 7 days and 10 MB, whichever limit is reached first; older entries are deleted first. Cleanup runs during logging, startup, viewing/sharing, and best-effort background maintenance (which Android may defer). Logs are stored in private, non-backed-up app storage. Sharing is optional: after a confirmation explaining the contents, the app prepares a ZIP and opens Android's sharing chooser. The app does not automatically upload logs to a StreakGuard server. A temporary ZIP copy is separate from retained logs, is replaced at the next export, and is removed after 24 hours during cleanup or sooner if Android clears its cache.</p>
+<p>Debug &gt; Clear logs asks for confirmation before deleting local logs and temporary reports. Logging resumes for new events afterward. Delete all your data also clears diagnostics. Copies already sent to another app or person are controlled by that recipient and cannot be deleted through StreakGuard.</p>
 <h2>6. Children&rsquo;s privacy</h2>
 <p>StreakGuard is not directed at children under 13, and we do not knowingly collect
 personal information from children.</p>

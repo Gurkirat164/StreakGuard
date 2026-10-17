@@ -25,6 +25,9 @@ import com.streakguard.app.ui.theme.TextMuted
 
 @Composable
 fun HomeScreen(container: AppContainer) {
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.SCREEN_OPENED, "screen" to "today")
+    }
     // Activity-scoped so refresh-on-open and this page use the same state.
     val activity = LocalActivity.current as ComponentActivity
     val vm: HomeViewModel = viewModel(

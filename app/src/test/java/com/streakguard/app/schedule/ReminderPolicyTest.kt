@@ -6,23 +6,23 @@ import org.junit.Test
 
 class ReminderPolicyTest {
     private val day = "2026-10-15"
-    private val hours = listOf(6, 3, 1)
+    private val minutes = listOf(360, 180, 60)
     private fun at(time: String) = Instant.parse("${day}T${time}Z")
 
     @Test fun earlierStagesStopThirtyMinutesBeforeNextStage() {
-        assertEquals(at("20:30:00"), ReminderPolicy.cutoff(day, hours, 0))
-        assertEquals(at("22:30:00"), ReminderPolicy.cutoff(day, hours, 1))
-        assertNotNull(ReminderPolicy.nextRetry(at("20:19:59"), day, hours, 0, 2))
-        assertNull(ReminderPolicy.nextRetry(at("20:20:00"), day, hours, 0, 2))
-        assertFalse(ReminderPolicy.active(at("20:30:00"), day, hours, 0))
-        assertFalse(ReminderPolicy.active(at("21:00:00"), day, hours, 0))
+        assertEquals(at("20:30:00"), ReminderPolicy.cutoff(day, minutes, 0))
+        assertEquals(at("22:30:00"), ReminderPolicy.cutoff(day, minutes, 1))
+        assertNotNull(ReminderPolicy.nextRetry(at("20:19:59"), day, minutes, 0, 2))
+        assertNull(ReminderPolicy.nextRetry(at("20:20:00"), day, minutes, 0, 2))
+        assertFalse(ReminderPolicy.active(at("20:30:00"), day, minutes, 0))
+        assertFalse(ReminderPolicy.active(at("21:00:00"), day, minutes, 0))
     }
 
     @Test fun finalStageGetsExactlyThreeRetries() {
-        assertEquals(at("23:10:00"), ReminderPolicy.nextRetry(at("23:00:00"), day, hours, 2, 0))
-        assertEquals(at("23:20:00"), ReminderPolicy.nextRetry(at("23:10:00"), day, hours, 2, 1))
-        assertEquals(at("23:30:00"), ReminderPolicy.nextRetry(at("23:20:00"), day, hours, 2, 2))
-        assertNull(ReminderPolicy.nextRetry(at("23:30:00"), day, hours, 2, 3))
+        assertEquals(at("23:10:00"), ReminderPolicy.nextRetry(at("23:00:00"), day, minutes, 2, 0))
+        assertEquals(at("23:20:00"), ReminderPolicy.nextRetry(at("23:10:00"), day, minutes, 2, 1))
+        assertEquals(at("23:30:00"), ReminderPolicy.nextRetry(at("23:20:00"), day, minutes, 2, 2))
+        assertNull(ReminderPolicy.nextRetry(at("23:30:00"), day, minutes, 2, 3))
     }
 
     @Test fun failureFallbackRingsForUnknownOrUnsolvedButNeverSolved() {
@@ -34,14 +34,14 @@ class ReminderPolicyTest {
     }
 
     @Test fun delayedWorkDoesNotCrossUtcMidnightOrStartEarly() {
-        assertFalse(ReminderPolicy.active(at("17:59:59"), day, hours, 0))
-        assertTrue(ReminderPolicy.active(at("18:00:00"), day, hours, 0))
-        assertFalse(ReminderPolicy.active(Instant.parse("2026-10-16T00:00:00Z"), day, hours, 2))
-        assertNull(ReminderPolicy.nextRetry(at("23:55:00"), day, hours, 2, 1))
+        assertFalse(ReminderPolicy.active(at("17:59:59"), day, minutes, 0))
+        assertTrue(ReminderPolicy.active(at("18:00:00"), day, minutes, 0))
+        assertFalse(ReminderPolicy.active(Instant.parse("2026-10-16T00:00:00Z"), day, minutes, 2))
+        assertNull(ReminderPolicy.nextRetry(at("23:55:00"), day, minutes, 2, 1))
     }
 
-    @Test fun customHoursDetermineCutoff() {
-        assertEquals(at("15:30:00"), ReminderPolicy.cutoff(day, listOf(23, 8, 2), 0))
+    @Test fun customTimesDetermineCutoff() {
+        assertEquals(at("15:30:00"), ReminderPolicy.cutoff(day, listOf(1380, 480, 120), 0))
     }
 
     @Test fun ringLimitIncludesInitialRingAndRespectsReset() {

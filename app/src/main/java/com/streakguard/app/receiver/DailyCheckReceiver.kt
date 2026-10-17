@@ -29,8 +29,11 @@ class DailyCheckReceiver : BroadcastReceiver() {
             try {
                 val tier = intent.getIntExtra("reminder_tier", -1)
                 val day = intent.getStringExtra("platform_day")
+                com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.REMINDER_RECEIVED,
+                    "tier" to tier, "day" to day, "attempt" to intent.getIntExtra("attempt", 0))
                 if (tier in 0..2 && day == TimeUtils.utcToday() &&
-                    app.container.settingsStore.remindersEnabled.first()) {
+                    app.container.settingsStore.remindersEnabled.first() &&
+                    !app.container.settingsStore.isCompleted(day = day)) {
                     // Queue the network work outside the receiver's short execution window.
                     val work = OneTimeWorkRequestBuilder<ReminderCheckWorker>()
                         .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
@@ -42,7 +45,8 @@ class DailyCheckReceiver : BroadcastReceiver() {
                     val attempt = intent.getIntExtra("attempt", 0)
                     val signature = intent.getStringExtra("signature").orEmpty().hashCode()
                     WorkManager.getInstance(context).enqueueUniqueWork("reminder_${day}_${tier}_${attempt}_$signature", ExistingWorkPolicy.KEEP, work)
-                }
+                } else com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.CHECK_SKIPPED,
+                    "reason" to "receiver_inactive", "tier" to tier)
             } finally {
                 runCatching { app.container.alarmScheduler.rescheduleFromSettings() }
                 pending.finish()

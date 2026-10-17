@@ -19,6 +19,8 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in listOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED,
                 Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_MY_PACKAGE_REPLACED)) return
+        com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.SYSTEM_EVENT,
+            "kind" to intent.action)
         val pending = goAsync()
         val app = context.applicationContext as StreakGuardApp
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {

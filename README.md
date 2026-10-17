@@ -1,111 +1,91 @@
 # StreakGuard
 
-An Android app that checks whether you've completed LeetCode's Problem of the Day (POTD)
-and notifies you at a set time each day if you haven't — so you never break your streak.
+StreakGuard is an Android app that checks LeetCode's Problem of the Day (POTD)
+and reminds you before the daily reset when it is still unsolved.
 
-Built with a plugin architecture: each coding platform implements one interface
-(`StreakPlatform`), so adding Codeforces, CodeChef, etc. later is a small, isolated change.
+Current app version: **0.4.4** (`versionCode` **12**).
 
 ## How it works
 
-At your chosen time each day, an exact alarm fires and the app:
+1. Enter your public LeetCode username in Settings and use **Test Connection** to verify it.
+2. Reminder tiers default to **6, 3, and 1 hours before 00:00 UTC**. Use **Edit** to
+   set three exact UTC clock times, including minutes, in the Notification times popup. Keep them in stage order and more than 30 minutes apart.
+3. At each tier, the app fetches the daily challenge and checks recent accepted
+   submissions for its slug since the start of the current UTC day.
+4. A confirmed unsolved result posts a notification that opens the challenge in
+   your browser. A solved result stays silent. Failed checks use bounded retries
+   and one connection/API failure notice per continuous outage.
 
-1. Fetches today's POTD from LeetCode's GraphQL endpoint (`activeDailyCodingChallengeQuestion`)
-2. Checks your recent accepted submissions for that problem's `titleSlug`
-3. If there is no accepted submission since the start of the current UTC day → posts a
-   notification; tapping it opens the problem in your browser
-4. If the POTD is done → stays silent
+The app also refreshes silently every 15, 30, or 60 minutes (default 15), on app
+open by default, and at UTC midnight. Background timing depends on Android's
+scheduling and battery restrictions. Cached status appears while fresh data loads.
 
-Everything runs on-device. No server, no account, no API key — just your LeetCode username.
+No StreakGuard server, login, password, or API key is required. Checks run on the
+phone and send your public username to LeetCode. See the [privacy policy](Policies/privacy-policy.html).
 
-### Day-boundary note
+## Timezones
 
-LeetCode's "day" flips at **UTC midnight** (5:30 AM IST). A submission counts for
-"today" when its timestamp is at or after the start of the current UTC day. Set your
-reminder comfortably before that if you want a true last-chance nudge.
+LeetCode resets at **UTC midnight** (5:30 AM in India). Reminder offsets always
+refer to that reset. The Settings display-timezone picker defaults to UTC and
+only changes the reminder times shown there; it does not move scheduled reminders.
+The compact 12 hr / 24 hr selector under Others controls reminder and popup formatting and Today timestamps. Today timestamps use the device timezone.
 
-## Prerequisites
+The original timezone selector and single-line time/timezone layout are retained.
+Further timezone redesign work is deferred; see [TODO.md](TODO.md).
 
-- Android Studio (Hedgehog or newer recommended)
-- JDK 17 (Android Studio's bundled JBR works fine)
-- A physical device or emulator running Android 8.0 (API 26) or newer
+## Setup and build
 
-## Build & install
+- Android 8.0 / API 26 or newer device or emulator.
+- JDK 17 and an Android Studio version compatible with the configured Android
+  Gradle Plugin. See [Building](docs/building.md) for tool versions and commands.
+- Open the project, sync Gradle, and build the debug APK at
+  `app/build/outputs/apk/debug/app-debug.apk`.
+- Launch once, enter your username, and allow notifications and exact alarms.
+  Settings provides shortcuts for missing permissions and a test notification.
+- Settings switches save automatically; custom reminder times require **Save times**. Reminder and username changes re-arm the
+  scheduled checks. Reboot, clock/timezone changes, and app updates also re-arm them.
 
-1. Open this folder in Android Studio (`File > Open…`, select the folder containing
-   `settings.gradle.kts`).
-2. Let the Gradle sync finish (the first sync downloads dependencies; needs internet).
-3. `Build > Build APK(s)` → you'll get `app/build/outputs/apk/debug/app-debug.apk`.
-4. Install it on your device (`adb install …` or drag onto the emulator).
-5. Open StreakGuard → grant **Notifications** and **Alarms & reminders** when asked
-   (the Settings screen also has shortcuts if you skip them).
-6. In Settings, use **Change** to enter your public LeetCode username and **Test Connection** to verify it.
-   Reminders default to 6, 3, and 1 hours before the **00:00 UTC** reset; use **Edit** to change these offsets.
-   The timezone picker changes displayed times, while the underlying reset stays in UTC.
-   Settings save automatically. Choose a 15, 30, or 60 minute silent sync interval, and optionally sync on app open.
+## Reminder retries and alarm status
 
-Reminder changes re-arm the countdown alarms immediately, and they are re-armed
-automatically after every reboot (open the app once after installing — Android only
-delivers `BOOT_COMPLETED` to apps that have been launched at least once).
+Scheduled failures show one failure notice per continuous outage. Retries run
+approximately every 10 minutes. A successful status fetch ends the outage. The
+first two tiers stop retrying 30 minutes before the next tier; delayed work cannot
+send an earlier-tier reminder after that cutoff. The final tier allows three
+retries after the initial attempt, bounded by UTC midnight.
 
-### Offline retries and alarms
+**Alarm ringing remains disabled with `AlarmFeature.ENABLED = false`.** Ordinary
+notifications, including the final tier, and API retries remain active. The Alarm Settings switch is present but disabled. Explicit user approval and device verification are still required before enabling
+ringing. The bundled sound, foreground service, Stop/Snooze controls, and durable
+three-ring limit are implemented but inactive; see [Features](docs/features.md).
 
-Alarm ringing is currently disabled in code with `AlarmFeature.ENABLED = false`.
-Ordinary reminder notifications (including the final stage) and API retries remain active.
-Re-enabling ringing requires dedicated alarm toggle options in Settings and explicit user approval.
-The ringing behavior described below is implemented but disabled for this release.
+## Project layout and documentation
 
-The first failed scheduled check shows one connection/API failure notice per continuous
-outage. Retries run approximately every 10 minutes without repeating the notice; a successful
-status fetch ends the outage. For the first two reminder stages, retries stop 30 minutes
-before the next stage. Delayed work cannot deliver an earlier stage past that cutoff.
+- `app/src/main/java/com/streakguard/app/platform/` — platform contract and LeetCode API implementation.
+- `domain/` — checks, cache preservation, recovery, and local-data deletion.
+- `schedule/` and `receiver/` — UTC reminder tiers, workers, retries, and midnight refresh.
+- `notify/` — notification channels and the disabled ringing system.
+- `data/` — Room history, DataStore settings, and related state.
+- `ui/` — Today and Settings screens, onboarding, splash, and theme.
+- [Documentation index](docs/README.md) — features, architecture, storage, design, build, and versioning.
 
-The final stage gets three retries after the initial failed fetch. If the third retry
-fails, StreakGuard rings when today's last known completion status is unsolved or unknown.
-A last known solved status stays silent. A successful final check rings only when unsolved.
+Paths after the first bullet are relative to the same application package directory.
 
-StreakGuard plays its bundled sound through its own foreground alarm service, with Stop
-and a 10-minute Snooze in the notification. Each ring lasts up to 60 seconds. Unattended
-rings repeat after 10 minutes, with at most three rings total, including snoozed rings.
-Stop cancels all remaining rings. A Stop control remains available while waiting for a
-repeat. Confirmed completion, disabling reminders, changing the username or reminder tiers,
-and clearing local data cancel the alarm. Alarms do not continue into the next platform day.
-Ring counts and pending retries survive process restarts and are restored after reboot.
+## Adding a platform
 
-The app has only Today and Settings pages; the duplicate LeetCode page has been removed.
+Implement `StreakPlatform` and register it in `AppContainer`. The check orchestrator
+and history support platform IDs, but Settings, reminder scheduling, and reminder
+worker delivery currently contain LeetCode-specific assumptions. Extend those
+paths and verify each platform's day boundary before claiming full support.
 
-## Project layout
+## Limitations
 
-- `platform/` — the plugin layer: `StreakPlatform` interface, `PlatformRegistry`,
-  and the `leetcode/` implementation (OkHttp + org.json, no auth)
-- `domain/DailyCheckOrchestrator.kt` — fetches status, preserves known cached data,
-  ends connection outages after recovery, and cancels alarms after completion
-- `schedule/AlarmScheduler.kt` — exact daily alarm (`setExactAndAllowWhileIdle`)
-- `receiver/` — `DailyCheckReceiver` (runs the check, re-arms the alarm),
-  `BootReceiver` (re-arms after reboot)
-- `notify/NotificationHelper.kt` — countdown reminder channels and test notifications
-- `notify/ChallengeAlarm*.kt` — durable three-ring alarm, audio service, Stop and Snooze
-- `schedule/ReminderPolicy.kt` — retry windows, final fallback, and ringing limits
-- `schedule/SyncScheduler.kt` — silent sync and scheduled reminder workers
-- `data/local/` — Room database (`check_log` history)
-- `data/prefs/SettingsStore.kt` — DataStore settings (per-platform usernames, reminder tiers, timezone)
-- `ui/` — Jetpack Compose screens: Home (status cards, "Check now") and Settings
-
-## Adding a platform (e.g. Codeforces)
-
-1. Create a class implementing `StreakPlatform` — e.g.
-   `platform/codeforces/CodeforcesPlatform.kt` with `getDailyChallenge()`,
-   `isCompletedToday(username)` and `getStreak(username)`.
-2. Add one line for it in the `platformRegistry` list in `AppContainer`.
-3. Done — the Settings screen builds its per-platform sections from the registry,
-   and scheduling, notifications and history work unchanged.
-
-## Caveats
-
-- LeetCode's GraphQL endpoint used here is **unofficial** and could change without
-  notice. All parsing is defensive: failures surface as "Unknown", never as a crash.
-- On-device scheduling means the phone must be on. Offline checks use bounded retries. On some
-  OEM skins, aggressive battery optimisation can delay alarms — exempting StreakGuard
-  from battery optimisation gives the most reliable timing.
-- Exact alarm access and notifications must be allowed for reliable scheduled ringing.
-  Sound follows Android's alarm volume, audio focus, and Do Not Disturb rules.
+- LeetCode's public GraphQL endpoint is unofficial and may change. Failed checks
+  produce unknown results and preserve previously known data where available.
+- The completion check uses recent accepted submissions; it is not a full submission-history scan.
+- The phone must be on. Android/OEM battery restrictions, work quotas, network
+  availability, and permission settings can delay or suppress reminders. Without
+  exact-alarm access the scheduler falls back to inexact alarms.
+- Releases use R8 and resource shrinking; the UI uses AndroidX edge-to-edge with
+  safe system insets. Play Console metric confirmation, the remaining OS/navigation
+  layout matrix, timezone redesign, and inactive ringing verification are tracked
+  in [TODO.md](TODO.md).

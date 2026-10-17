@@ -12,19 +12,31 @@ android {
         applicationId = "com.streakguard.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 11
-        versionName = "0.4.3"
+        versionCode = 12
+        versionName = "0.4.4"
+        testInstrumentationRunner = "com.streakguard.app.OptimizedSmokeRunner"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
+        // Isolated, debug-signed install using the same R8/resource rules as release.
+        // Never publish this variant; it exists to exercise optimized code on a device.
+        create("optimizedTest") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".qa"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+            proguardFiles("optimized-test-rules.pro")
+        }
     }
+    testBuildType = if (providers.gradleProperty("optimizedSmoke").isPresent) "optimizedTest" else "debug"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -75,4 +87,18 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-tooling-preview")
+}
+
+// Keep symbols tied to the exact release, alongside the APK/AAB in CI artifacts.
+// AGP also embeds the R8 mapping in an App Bundle for Play crash deobfuscation.
+val archiveReleaseSymbols by tasks.registering(Zip::class) {
+    dependsOn("minifyReleaseWithR8")
+    from(layout.buildDirectory.dir("outputs/mapping/release")) {
+        include("*.txt", "*.prt")
+    }
+    archiveFileName.set("streakguard-${android.defaultConfig.versionName}-${android.defaultConfig.versionCode}-symbols.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("outputs/release-symbols"))
+}
+tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
+    finalizedBy(archiveReleaseSymbols)
 }

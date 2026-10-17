@@ -1,6 +1,5 @@
 package com.streakguard.app.domain
 
-import android.util.Log
 import com.streakguard.app.data.local.AppDatabase
 import com.streakguard.app.data.local.CheckLog
 import com.streakguard.app.data.prefs.SettingsStore
@@ -11,6 +10,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.CancellationException
+import com.streakguard.app.diagnostics.Diagnostics
+import com.streakguard.app.diagnostics.DiagnosticEvent
 
 /**
  * Runs the daily check for every enabled platform that has a username set:
@@ -24,6 +25,7 @@ class DailyCheckOrchestrator(
     private val notifications: NotificationHelper,
     private val reminderState: com.streakguard.app.schedule.ReminderState,
     private val alarm: com.streakguard.app.notify.ChallengeAlarm,
+    private val onCompleted: suspend () -> Unit,
 ) {
     private val checkMutex = Mutex()
 
@@ -41,14 +43,30 @@ class DailyCheckOrchestrator(
 
     suspend fun runCheck(manual: Boolean): List<PlatformStatus> = checkMutex.withLock {
         val today = TimeUtils.utcToday()
+        Diagnostics.log(DiagnosticEvent.CHECK_STARTED, "manual" to manual, "day" to today)
         val results = mutableListOf<PlatformStatus>()
 
         for (platform in registry.platforms) {
             val enabled = runCatching { settings.enabled(platform.id).first() }.getOrDefault(true)
-            if (!enabled) continue
+            if (!enabled) { Diagnostics.log(DiagnosticEvent.CHECK_SKIPPED, "reason" to "platform_disabled"); continue }
 
             val username = runCatching { settings.username(platform.id).first() }.getOrDefault("")
-            if (username.isBlank()) continue
+            if (username.isBlank()) { Diagnostics.log(DiagnosticEvent.CHECK_SKIPPED, "reason" to "username_missing"); continue }
+
+            val existing = db.checkLogDao().getForDate(platform.id, today)
+                .takeIf { settings.checkedUsername(platform.id).first() == username }
+            val completedDay = settings.isCompleted(platform.id, today)
+            // Also adopt solved rows written by versions before the completion gate.
+            if (completedDay || existing?.let { it.known && it.completed } == true) {
+                Diagnostics.log(DiagnosticEvent.CHECK_SKIPPED, "reason" to "already_solved", "day" to today)
+                if (!completedDay) {
+                    settings.markCompleted(platform.id, username, today)
+                }
+                onCompleted()
+                results.add(PlatformStatus(platform.id, platform.displayName, existing?.challengeTitle,
+                    existing?.challengeUrl, true, existing?.streak, existing?.difficulty, existing?.questionNumber))
+                continue
+            }
 
             var challengeTitle: String? = null
             var challengeUrl: String? = null
@@ -63,19 +81,24 @@ class DailyCheckOrchestrator(
                 difficulty = challenge?.difficulty
                 questionNumber = challenge?.questionNumber
                 completed = platform.isCompletedToday(username)
-                streak = runCatching { platform.getStreak(username) }.getOrNull()
+                // Once solved, even the optional streak fetch waits until tomorrow.
+                streak = if (completed == true) existing?.streak
+                    else runCatching { platform.getStreak(username) }.getOrNull()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Log.w(TAG, "Check failed for ${platform.id} (manual=$manual)", e)
+                Diagnostics.log(DiagnosticEvent.API_FAILED, "error_type" to e.javaClass.simpleName)
                 completed = null
             }
 
             val fetchedAnything = completed != null || challengeTitle != null
+            // Never save or deliver a response for an account/day that changed in flight.
+            if (TimeUtils.utcToday() != today || settings.username(platform.id).first() != username) {
+                Diagnostics.log(DiagnosticEvent.CHECK_SKIPPED, "reason" to "day_or_account_changed"); continue
+            }
+            if (completed == true) settings.markCompleted(platform.id, username, today)
             runCatching {
                 // Never let a failed check wipe out today's good data: only
                 // persist when we learned something or nothing was stored yet.
-                val existing = db.checkLogDao().getForDate(platform.id, today)
-                    .takeIf { settings.checkedUsername(platform.id).first() == username }
                 if (fetchedAnything || existing == null) {
                     db.checkLogDao().insert(
                         CheckLog(
@@ -93,7 +116,8 @@ class DailyCheckOrchestrator(
                     )
                     settings.setCheckedUsername(platform.id, username)
                 }
-            }.onFailure { Log.w(TAG, "Failed to log check for ${platform.id}", it) }
+            }.onFailure { Diagnostics.log(DiagnosticEvent.DATABASE_FAILED, "error_type" to it.javaClass.simpleName) }
+            Diagnostics.log(DiagnosticEvent.CHECK_FINISHED, "day" to today, "completed" to completed, "known" to (completed != null))
 
             results.add(
                 PlatformStatus(
@@ -107,13 +131,22 @@ class DailyCheckOrchestrator(
                     questionNumber = questionNumber,
                 )
             )
-            if (completed == true) alarm.stopFor(platform.id, today)
+            if (completed == true) {
+                alarm.stopFor(platform.id, today)
+                notifications.cancelReminders(platform.id)
+                onCompleted()
+            }
         }
         if (results.isNotEmpty() && results.all { it.completed != null }) {
             reminderState.recovered()
             notifications.cancelFailure()
         }
         results
+    }
+
+    /** Delivery shares the check lock: a concurrent solve cannot race a stale reminder. */
+    suspend fun <T> ifUnsolved(day: String, action: suspend () -> T): T? = checkMutex.withLock {
+        if (day != TimeUtils.utcToday() || settings.isCompleted(day = day)) null else action()
     }
 
     /** Serialize deletion with checks so an in-flight fetch cannot restore deleted data. */

@@ -28,7 +28,13 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         private set
     var syncInterval by mutableStateOf(15)
         private set
-    var reminderHours by mutableStateOf(ReminderSchedule.defaultHours)
+    var reminderMinutes by mutableStateOf(ReminderSchedule.defaultMinutes)
+        private set
+    var use24HourTime by mutableStateOf(true)
+        private set
+    var alarmsEnabled by mutableStateOf(false)
+        private set
+    var isSavingTimes by mutableStateOf(false)
         private set
     var displayTimezone by mutableStateOf("UTC")
         private set
@@ -64,14 +70,18 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         hapticsEnabled = store.hapticsEnabled.first()
         syncOnOpen = store.syncOnOpen.first()
         syncInterval = store.syncInterval.first()
-        reminderHours = store.reminderHours.first()
+        reminderMinutes = store.reminderMinutes.first()
+        use24HourTime = store.use24HourTime.first()
+        alarmsEnabled = store.alarmsEnabled.first()
         displayTimezone = store.displayTimezone.first()
     }
     private fun edit(action: suspend () -> Unit) {
         if (!initialized || isClearing) return
         viewModelScope.launch {
             edits.withLock {
-                try { action(); message = null }
+                try { action(); message = null
+                    com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.SETTINGS_CHANGED)
+                }
                 catch (_: Exception) { message = "Couldn't save the change. Please try again." }
             }
         }
@@ -87,6 +97,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             container.settingsStore.setEnabled("leetcode", true)
             username = handle; profileVerified = false; connectionOk = null; connectionLatency = null
             container.alarmScheduler.rescheduleFromSettings()
+            container.syncScheduler.schedule(syncInterval)
             testConnection()
         }
     }
@@ -98,6 +109,14 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     }
     fun setHaptics(value: Boolean) = edit {
         container.settingsStore.setHapticsEnabled(value); hapticsEnabled = value
+    }
+    fun setTimeFormat(value: Boolean) = edit {
+        container.settingsStore.setUse24HourTime(value); use24HourTime = value
+    }
+    fun setAlarms(value: Boolean) = edit {
+        if (value && !com.streakguard.app.notify.AlarmFeature.ENABLED) return@edit
+        container.settingsStore.setAlarmsEnabled(value); alarmsEnabled = value
+        if (!value) container.challengeAlarm.stop()
     }
     fun onSyncOnOpenChange(value: Boolean) = edit {
         container.settingsStore.setSyncOnOpen(value); syncOnOpen = value
@@ -120,6 +139,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                     workManager.cancelUniqueWork("challenge_status_sync")
                     container.alarmScheduler.cancel()
                     container.checkOrchestrator.clearUserData()
+                    container.diagnostics.clear()
                     loadSettings()
                     connectionOk = null
                     connectionLatency = null
@@ -135,15 +155,29 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             }
         }
     }
-    fun setTiers(hours: List<Int>): Boolean {
-        if (!ReminderSchedule.valid(hours)) return false
-        edit {
-            container.settingsStore.setReminderHours(hours); reminderHours = hours
-            container.challengeAlarm.stop()
-            androidx.work.WorkManager.getInstance(container.appContext()).cancelAllWorkByTag("countdown_reminder")
-            container.alarmScheduler.rescheduleFromSettings()
+    fun saveReminderTimes(utcTimes: List<Int>, onSaved: () -> Unit) {
+        val offsets = ReminderSchedule.offsetsForUtcTimes(utcTimes) ?: return
+        if (!initialized || isClearing || isSavingTimes) return
+        isSavingTimes = true
+        viewModelScope.launch {
+            try {
+                edits.withLock {
+                    container.settingsStore.setReminderMinutes(offsets)
+                    reminderMinutes = offsets
+                    container.challengeAlarm.stop()
+                    androidx.work.WorkManager.getInstance(container.appContext()).cancelAllWorkByTag("countdown_reminder")
+                    container.alarmScheduler.rescheduleFromSettings()
+                    message = null
+                    onSaved()
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                message = "Couldn't save reminder times. Please try again."
+            } finally {
+                isSavingTimes = false
+            }
         }
-        return true
     }
     fun testConnection() {
         if (isTesting || isClearing || username.isBlank()) return

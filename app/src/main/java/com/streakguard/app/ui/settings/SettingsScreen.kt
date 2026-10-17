@@ -16,14 +16,18 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,7 +39,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
@@ -49,36 +52,35 @@ import com.streakguard.app.di.AppContainer
 import com.streakguard.app.ui.components.AppHeader
 import com.streakguard.app.ui.theme.*
 import java.time.Instant
-import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 private const val PRIVACY_POLICY_URL = "https://gurkirat164.github.io/StreakGuard/Policies/"
-// Values inspected in the approved Figma Old Screen, scoped to Settings.
-private val SettingsCanvas = Color(0xFF0D1320)
-private val SettingsCard = Color(0xFF121826)
-private val SettingsButton = Color(0xFF1E273B)
-private val SettingsInset = Color(0xFF192033)
-private val SettingsText = Color(0xFFF1F5F9)
-private val SettingsMuted = Color(0xFF94A3B8)
-private val SettingsDescription = Color(0xFFAB8980)
-private val SettingsThumb = Color(0xFF3B0900)
-private val SettingsBorder = Color(0xFF1E263A)
-private val SettingsDivider = Color(0xFF1A2235)
-private val SettingsTelemetry = Color(0xFF8A99AD)
-private val SettingsInfo = Color(0xFF6C7D93)
-private val SettingsAmber = Color(0xFFFBBF24)
-private val SettingsUrgent = Color(0xFFFF3D00)
-private val SettingsSafe = Color(0xFF4EDEA3)
-private val CountdownFont = FontFamily(
+// Settings V2 palette and typography from the approved Figma design.
+internal val SettingsCanvas = Color(0xFF0D1320)
+internal val SettingsCard = Color(0xFF121826)
+internal val SettingsButton = Color(0xFF1E273B)
+internal val SettingsInset = Color(0xFF192033)
+internal val SettingsText = Color(0xFFF1F5F9)
+internal val SettingsMuted = Color(0xFF94A3B8)
+internal val SettingsDescription = Color(0xFFAB8980)
+internal val SettingsThumb = Color(0xFF3B0900)
+internal val SettingsBorder = Color(0xFF1E263A)
+internal val SettingsDivider = Color(0xFF1A2235)
+internal val SettingsTelemetry = Color(0xFF8A99AD)
+internal val SettingsInfo = Color(0xFF6C7D93)
+internal val SettingsAmber = Color(0xFFFBBF24)
+internal val SettingsUrgent = Color(0xFFFF3D00)
+internal val SettingsSafe = Color(0xFF4EDEA3)
+internal val CountdownFont = FontFamily(
     Font(R.font.settings_liberation_mono, FontWeight.Normal),
     Font(R.font.settings_liberation_mono_bold, FontWeight.Bold))
 private val CountdownDescriptionFont = FontFamily(Font(R.font.settings_nimbus_sans))
-private val Sunken = Color(0xFF0B101C)
-private val Critical = Color(0xFFEF4444)
+internal val Sunken = Color(0xFF0B101C)
+internal val Critical = Color(0xFFEF4444)
 private val PermissionDescriptionFont = FontFamily(Font(R.font.settings_roboto_mono))
-private val SettingsCardFont = FontFamily(
+internal val SettingsCardFont = FontFamily(
     Font(R.font.geist_regular, FontWeight.Normal),
     Font(R.font.geist_medium, FontWeight.Medium),
     Font(R.font.settings_geist_bold, FontWeight.Bold),
@@ -92,6 +94,11 @@ fun SettingsScreen(container: AppContainer) {
     var editUsername by remember { mutableStateOf(false) }
     var editTiers by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
+    var showDebug by remember { mutableStateOf(false) }
+    val debugAccess by container.diagnostics.availability.collectAsState()
+    LaunchedEffect(Unit) { com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.SCREEN_OPENED,
+        "screen" to "settings") }
+    if (showDebug && debugAccess.visible) DebugDialog(container.diagnostics, onDismiss = { showDebug = false })
     var zoneExpanded by remember { mutableStateOf(false) }
     var notifGranted by remember { mutableStateOf(container.notificationHelper.notificationsEnabled()) }
     var exactGranted by remember { mutableStateOf(container.alarmScheduler.isExactAlarmAllowed()) }
@@ -100,6 +107,8 @@ fun SettingsScreen(container: AppContainer) {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                container.diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.PERMISSIONS_SNAPSHOT,
+                    container.diagnostics.permissionFields())
                 notifGranted = container.notificationHelper.notificationsEnabled()
                 exactGranted = container.alarmScheduler.isExactAlarmAllowed()
                 scope.launch { runCatching { container.alarmScheduler.rescheduleFromSettings() } }
@@ -150,26 +159,14 @@ fun SettingsScreen(container: AppContainer) {
         )
     }
     if (editTiers) {
-        var hours by remember { mutableStateOf(vm.reminderHours.map { it.toString() }) }
-        var invalid by remember { mutableStateOf(false) }
-        AlertDialog(
-            onDismissRequest = { editTiers = false },
-            title = { Text("Countdown alert tiers") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Hours before the 00:00 UTC reset. Use decreasing values from 1 to 23.")
-                listOf("Passive ping", "Warning nudge", "Urgent buzzer").forEachIndexed { index, title ->
-                    OutlinedTextField(hours[index], { value ->
-                        hours = hours.toMutableList().also { it[index] = value.filter(Char::isDigit).take(2) }
-                        invalid = false
-                    }, label = { Text(title) }, suffix = { Text("hours") }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                }
-                if (invalid) Text("Enter three decreasing, different values between 1 and 23.", color = Critical)
-            } },
-            confirmButton = { TextButton(onClick = {
-                if (vm.setTiers(hours.map { it.toIntOrNull() ?: 0 })) editTiers = false else invalid = true
-            }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { editTiers = false }) { Text("Cancel") } },
+        NotificationTimesDialog(
+            initialMinutes = vm.reminderMinutes,
+            zone = vm.zone,
+            use24HourTime = vm.use24HourTime,
+            saving = vm.isSavingTimes,
+            errorMessage = vm.message,
+            onDismiss = { if (!vm.isSavingTimes) editTiers = false },
+            onSave = { times -> vm.saveReminderTimes(times) { editTiers = false } },
         )
     }
     if (confirmClear) {
@@ -259,16 +256,20 @@ fun SettingsScreen(container: AppContainer) {
                 val titles = listOf("Passive ping", "Warning nudge", "Urgent buzzer")
                 val badges = listOf("INFO", "ALERT", "CRITICAL")
                 val colors = listOf(SettingsMuted, SettingsAmber, SettingsUrgent)
-                vm.reminderHours.forEachIndexed { tier, hours ->
+                vm.reminderMinutes.forEachIndexed { tier, minutes ->
                     val instant = now.atZone(ZoneOffset.UTC).toLocalDate().plusDays(1).atStartOfDay(ZoneOffset.UTC)
-                        .minusHours(hours.toLong()).toInstant()
-                    val time = DateTimeFormatter.ofPattern("HH:mm").withZone(zone).format(instant)
+                        .minusMinutes(minutes.toLong()).toInstant()
+                    val time = com.streakguard.app.util.ClockFormat.format(instant.atZone(zone).toLocalTime(), vm.use24HourTime)
                     Row(Modifier.fillMaxWidth().background(Sunken, RoundedCornerShape(8.dp))
                         .border(1.dp, SettingsInset, RoundedCornerShape(8.dp))
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Mono("T-${hours}h", colors[tier], 13, weight = FontWeight.Bold, family = CountdownFont)
-                        Mono("$time $timeSuffix", SettingsTelemetry, 12, weight = FontWeight.Normal, family = CountdownFont)
+                        Text(buildAnnotatedString {
+                            withStyle(SpanStyle(color = colors[tier], fontWeight = FontWeight.Bold)) { append(time) }
+                            withStyle(SpanStyle(color = SettingsMuted, fontWeight = FontWeight.Normal)) {
+                                append(" $timeSuffix")
+                            }
+                        }, fontFamily = JetBrainsMonoFontFamily, fontSize = 12.sp, lineHeight = 18.sp)
                         Text(titles[tier], color = Color.White, fontFamily = CountdownDescriptionFont,
                             fontSize = 13.sp, lineHeight = 19.5.sp, letterSpacing = 0.sp, modifier = Modifier.weight(1f))
                         Mono(badges[tier], if (tier == 0) SettingsInfo else colors[tier], 11,
@@ -297,8 +298,25 @@ fun SettingsScreen(container: AppContainer) {
             Spacer(Modifier.height(12.dp))
             DesignDivider()
             Spacer(Modifier.height(12.dp))
-            ToggleRow("Tactile Urgency Haptics", "Vibration pulse at T-${vm.reminderHours[1]}h and T-${vm.reminderHours[2]}h",
+            ToggleRow("Vibration Pulse", "Vibrate for all notifications",
                 vm.hapticsEnabled, vm::setHaptics, vm.initialized)
+        }
+        SettingsModule("Alarm Settings", R.drawable.ic_settings_clock_bold,
+            headerBadge = {
+                Mono(if (vm.alarmsEnabled && com.streakguard.app.notify.AlarmFeature.ENABLED) "ON" else "OFF",
+                    SettingsMuted, 10, Modifier.background(SettingsButton, RoundedCornerShape(5.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp))
+            }) {
+            DesignDivider()
+            Spacer(Modifier.height(16.dp))
+            ToggleRow("Ringing alarms", "Play sound for the final reminder.",
+                vm.alarmsEnabled && com.streakguard.app.notify.AlarmFeature.ENABLED, vm::setAlarms,
+                vm.initialized && com.streakguard.app.notify.AlarmFeature.ENABLED)
+            if (!com.streakguard.app.notify.AlarmFeature.ENABLED) {
+                Spacer(Modifier.height(8.dp))
+                Text("Ringing alarms are not available yet.", color = SettingsMuted,
+                    fontSize = 11.sp, lineHeight = 16.sp)
+            }
         }
         SettingsModule("Sync Interval", R.drawable.ic_settings_sync, "Every ${vm.syncInterval} min") {
             Spacer(Modifier.height(8.dp))
@@ -341,8 +359,10 @@ fun SettingsScreen(container: AppContainer) {
         }
         SettingsModule("Others", R.drawable.ic_settings_tune, contentSpacing = 14.dp, headerFont = SettingsCardFont) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                TimeFormatRow(vm.use24HourTime, vm.initialized && !vm.isClearing, vm::setTimeFormat)
                 SettingsActionRow("Send test notification", "Trigger instant test ping to verify", R.drawable.ic_settings_send,
-                    SettingsMuted, "Test", enabled = notifGranted, onClick = { container.notificationHelper.sendTest() })
+                    SettingsMuted, "Test", enabled = notifGranted && vm.initialized,
+                    onClick = { container.notificationHelper.sendTest(vm.hapticsEnabled) })
                 SettingsActionRow("Delete all your data", "Clear local cache, stored", R.drawable.ic_settings_delete,
                     Color(0xFFF87171), if (vm.isClearing) "Clearing…" else "Clear", destructive = true,
                     enabled = vm.initialized && !vm.isClearing && !vm.isTesting, onClick = { confirmClear = true })
@@ -354,6 +374,9 @@ fun SettingsScreen(container: AppContainer) {
             TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL))) }) {
                 Text("Privacy Policy", color = SettingsMuted, fontFamily = GeistFontFamily, fontSize = 13.sp,
                     letterSpacing = 0.sp)
+            }
+            if (debugAccess.visible) TextButton(onClick = { showDebug = true }) {
+                Text("Debug", color = SettingsMuted, fontFamily = GeistFontFamily, fontSize = 13.sp)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -444,6 +467,43 @@ private fun SettingsActionRow(
                 .copy(alpha = if (enabled) 1f else .5f), fontFamily = SettingsCardFont,
                 fontWeight = if (primaryAction) FontWeight.Bold else FontWeight.Medium,
                 fontSize = 12.sp, lineHeight = 18.sp, letterSpacing = (-.12).sp, maxLines = 1, softWrap = false)
+        }
+    }
+}
+
+@Composable
+private fun TimeFormatRow(use24Hour: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 70.dp)
+        .background(Sunken, RoundedCornerShape(12.dp))
+        .border(1.dp, SettingsBorder, RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.size(40.dp).background(Color(0xFF151D2E), RoundedCornerShape(12.dp))
+            .border(1.dp, SettingsBorder, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center) {
+            DesignIcon(R.drawable.ic_settings_schedule, SettingsMuted, 24)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("Time format", color = Color.White, fontFamily = SettingsCardFont,
+                fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
+            Text("Clock display style", color = SettingsMuted, fontFamily = SettingsCardFont,
+                fontSize = 11.sp, lineHeight = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Row(Modifier.background(SettingsButton, RoundedCornerShape(7.dp))
+            .border(1.dp, Color(0xFF263049), RoundedCornerShape(7.dp)).padding(2.dp)
+            .semantics { contentDescription = "Time format" }) {
+            listOf(false to "12 hr", true to "24 hr").forEach { (value, label) ->
+                Box(Modifier.size(43.dp, 22.dp)
+                    .background(if (use24Hour == value) Primary else Color.Transparent, RoundedCornerShape(5.dp))
+                    .selectable(selected = use24Hour == value, enabled = enabled,
+                        role = Role.RadioButton, onClick = { onChange(value) }),
+                    contentAlignment = Alignment.Center) {
+                    Mono(label, if (use24Hour == value) SettingsThumb else SettingsMuted, 10,
+                        weight = if (use24Hour == value) FontWeight.Bold else FontWeight.Normal,
+                        family = CountdownFont)
+                }
+            }
         }
     }
 }

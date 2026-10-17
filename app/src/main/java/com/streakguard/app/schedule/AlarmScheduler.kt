@@ -12,6 +12,8 @@ import com.streakguard.app.util.TimeUtils
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.flow.first
+import com.streakguard.app.diagnostics.Diagnostics
+import com.streakguard.app.diagnostics.DiagnosticEvent
 
 /**
  * Schedules the once-daily check with an exact alarm (fires even in Doze).
@@ -28,7 +30,7 @@ class AlarmScheduler(
     private val retryPrefs = context.getSharedPreferences("reminder_retries", Context.MODE_PRIVATE)
 
     suspend fun signature(): String = settings.username("leetcode").first() + ":" +
-        settings.enabled("leetcode").first() + ":" + settings.reminderHours.first().joinToString(",")
+        settings.enabled("leetcode").first() + ":" + "minutes:" + settings.reminderMinutes.first().joinToString(",")
 
     suspend fun deliveryKey(day: String, tier: Int): String =
         "$day:$tier:${settings.username("leetcode").first()}"
@@ -48,8 +50,9 @@ class AlarmScheduler(
         }
         val signature = signature()
         val now = Instant.now()
-        settings.reminderHours.first().forEachIndexed { tier, hours ->
-            val trigger = ReminderSchedule.nextTrigger(now, hours)
+        val completed = settings.isCompleted()
+        settings.reminderMinutes.first().forEachIndexed { tier, minutes ->
+            val trigger = ReminderSchedule.nextTrigger(now, minutes, completedToday = completed)
             val intent = Intent(context, DailyCheckReceiver::class.java).apply {
                 putExtra("reminder_tier", tier)
                 putExtra("platform_day", trigger.atZone(ZoneOffset.UTC).toLocalDate().toString())
@@ -58,11 +61,12 @@ class AlarmScheduler(
             val pending = PendingIntent.getBroadcast(context, REQUEST_TIER_BASE + tier, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             scheduleAt(trigger.toEpochMilli(), pending)
+            Diagnostics.log(DiagnosticEvent.REMINDER_SCHEDULED, "tier" to tier, "at" to trigger.toString(), "completed" to completed)
             val day = retryPrefs.getString("day_$tier", null)
             if (day != null) {
-                val valid = retryPrefs.getString("signature_$tier", null) == signature &&
+                val valid = !completed && retryPrefs.getString("signature_$tier", null) == signature &&
                     day == TimeUtils.utcToday() &&
-                    now.isBefore(ReminderPolicy.cutoff(day, settings.reminderHours.first(), tier))
+                    now.isBefore(ReminderPolicy.cutoff(day, settings.reminderMinutes.first(), tier))
                 if (valid) {
                     scheduleReminderRetry(day, tier, retryPrefs.getInt("attempt_$tier", 1),
                         maxOf(now.toEpochMilli() + 1000, retryPrefs.getLong("at_$tier", 0)), signature)
@@ -75,12 +79,15 @@ class AlarmScheduler(
         val manager = context.getSystemService(AlarmManager::class.java) ?: return
         try {
             manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+            Diagnostics.log(DiagnosticEvent.REMINDER_SCHEDULED, "at" to Instant.ofEpochMilli(at).toString(), "exact" to true)
         } catch (_: SecurityException) {
             manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+            Diagnostics.log(DiagnosticEvent.REMINDER_SCHEDULED, "at" to Instant.ofEpochMilli(at).toString(), "exact" to false)
         }
     }
 
     fun scheduleReminderRetry(day: String, tier: Int, attempt: Int, at: Long, signature: String) {
+        Diagnostics.log(DiagnosticEvent.RETRY_SCHEDULED, "day" to day, "tier" to tier, "attempt" to attempt, "at" to Instant.ofEpochMilli(at).toString())
         retryPrefs.edit().putString("day_$tier", day).putInt("attempt_$tier", attempt)
             .putLong("at_$tier", at).putString("signature_$tier", signature).commit()
         val intent = Intent(context, DailyCheckReceiver::class.java).apply {
@@ -92,6 +99,7 @@ class AlarmScheduler(
     }
 
     fun cancelReminderRetry(tier: Int) {
+        Diagnostics.log(DiagnosticEvent.RETRY_CANCELLED, "tier" to tier)
         retryPrefs.edit().remove("day_$tier").remove("attempt_$tier").remove("at_$tier")
             .remove("signature_$tier").commit()
         val pending = PendingIntent.getBroadcast(context, REQUEST_REMINDER_RETRY + tier,
@@ -126,6 +134,7 @@ class AlarmScheduler(
      * the cache without posting notifications and re-arms itself.
      */
     fun scheduleMidnightRefresh() {
+        Diagnostics.log(DiagnosticEvent.REMINDER_SCHEDULED, "kind" to "midnight", "at" to Instant.ofEpochMilli(TimeUtils.nextUtcMidnightMillis()).toString())
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
         val pendingIntent = PendingIntent.getBroadcast(
             context,
@@ -153,6 +162,7 @@ class AlarmScheduler(
      * Used when the midnight refresh couldn't reach the network.
      */
     fun scheduleRefreshRetry(delayMinutes: Long, attempt: Int) {
+        Diagnostics.log(DiagnosticEvent.RETRY_SCHEDULED, "kind" to "midnight", "minutes" to delayMinutes, "attempt" to attempt)
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
         val intent = Intent(context, MidnightRefreshReceiver::class.java).apply {
             putExtra(MidnightRefreshReceiver.EXTRA_RETRY_ATTEMPT, attempt)

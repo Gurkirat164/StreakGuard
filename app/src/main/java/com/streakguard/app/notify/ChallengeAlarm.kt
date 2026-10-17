@@ -23,6 +23,8 @@ class ChallengeAlarm(private val context: Context) {
     }
 
     @Synchronized fun start(day: String, platform: String, username: String, title: String) {
+        com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.ALARM_EVENT,
+            "kind" to "start_requested", "enabled" to AlarmFeature.ENABLED, "day" to day)
         if (!AlarmFeature.ENABLED) { stop(); return }
         if (!(context.applicationContext as com.streakguard.app.StreakGuardApp).container.notificationHelper.alarmsEnabled()) return
         if (current()?.let { it.day == day && it.platform == platform && it.username == username } == true) return
@@ -56,6 +58,7 @@ class ChallengeAlarm(private val context: Context) {
     }
 
     @Synchronized fun stop(token: String? = null) {
+        com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.ALARM_EVENT, "kind" to "stop")
         if (token != null && current()?.token != token) return
         val pending = pendingIntent(PendingIntent.FLAG_NO_CREATE)
         if (pending != null) {

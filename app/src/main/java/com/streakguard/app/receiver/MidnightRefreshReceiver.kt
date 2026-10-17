@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 /**
  * Fired at each UTC midnight (and on retries). Silently refreshes the cache
@@ -20,6 +21,8 @@ import kotlinx.coroutines.launch
 class MidnightRefreshReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
+        com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.MIDNIGHT_RECEIVED,
+            "attempt" to intent.getIntExtra(EXTRA_RETRY_ATTEMPT, 0))
         val pending = goAsync()
         val attempt = intent.getIntExtra(EXTRA_RETRY_ATTEMPT, 0)
         val app = context.applicationContext as StreakGuardApp
@@ -43,6 +46,8 @@ class MidnightRefreshReceiver : BroadcastReceiver() {
                     }
                 }
             } finally {
+                runCatching { app.container.alarmScheduler.rescheduleFromSettings() }
+                runCatching { app.container.syncScheduler.schedule(app.container.settingsStore.syncInterval.first()) }
                 pending.finish()
             }
         }

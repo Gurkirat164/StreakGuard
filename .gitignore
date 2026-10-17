@@ -5,6 +5,8 @@
 .DS_Store
 /build
 /app/build
+/.kotlin/
+/app/release/
 
 # Android App Bundles and accidental .abb output names
 *.aab

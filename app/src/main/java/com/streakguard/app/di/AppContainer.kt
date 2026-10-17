@@ -16,7 +16,8 @@ import java.util.concurrent.TimeUnit
  * Manual dependency container (no DI framework). Everything is lazy so the
  * app starts fast and receivers only pay for what they use.
  */
-class AppContainer(context: Context) {
+class AppContainer(context: Context,
+    diagnosticsPolicy: com.streakguard.app.diagnostics.DiagnosticsAccessPolicy = com.streakguard.app.diagnostics.DiagnosticsFeaturePolicy) {
 
     private val appContext = context.applicationContext
 
@@ -43,6 +44,7 @@ class AppContainer(context: Context) {
     }
 
     val settingsStore: SettingsStore by lazy { SettingsStore(appContext) }
+    val diagnostics by lazy { com.streakguard.app.diagnostics.DiagnosticsService(appContext, settingsStore, diagnosticsPolicy) }
     val reminderState by lazy { com.streakguard.app.schedule.ReminderState(appContext) }
     val challengeAlarm by lazy { com.streakguard.app.notify.ChallengeAlarm(appContext) }
 
@@ -61,6 +63,17 @@ class AppContainer(context: Context) {
             notifications = notificationHelper,
             reminderState = reminderState,
             alarm = challengeAlarm,
+            onCompleted = ::stopCompletedDayWork,
         )
+    }
+
+    suspend fun stopCompletedDayWork() {
+        // Keep tomorrow's daily alarms and the UTC-midnight refresh.
+        alarmScheduler.rescheduleFromSettings()
+        (0..2).forEach(alarmScheduler::cancelReminderRetry)
+        notificationHelper.cancelReminders("leetcode")
+        challengeAlarm.stopFor("leetcode", com.streakguard.app.util.TimeUtils.utcToday())
+        syncScheduler.cancel()
+        androidx.work.WorkManager.getInstance(appContext).cancelAllWorkByTag("countdown_reminder")
     }
 }
