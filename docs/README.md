@@ -1,6 +1,6 @@
 # StreakGuard docs
 
-Documentation for the current repository build: **0.4.4** (`versionCode` **12**).
+Documentation for the current repository build: **0.4.5** (`versionCode` **13**).
 Current behavior is distinguished from the implemented but disabled ringing system.
 Pending work and verification are tracked in [TODO.md](../TODO.md).
 
@@ -8,6 +8,7 @@ Pending work and verification are tracked in [TODO.md](../TODO.md).
 - [Features](features.md) — reminders, retries, sync, screens, and inactive ringing
 - [Architecture](architecture.md) — packages, platform support, workers, and state
 - [Design system](design-system.md) — shared theme and Settings-specific styling
+- [Battery reminder prompts](battery-reminder-prompts.md) — Settings v3 battery card, launch prompts, suppression, and Android settings checks
 - [Data & storage](data-storage.md) — Room schema, preferences, durable state, and time rules
 - [Building](building.md) — configured toolchain, build/check commands, and release limitations
 - [Debug diagnostics](diagnostics.md) — local logs, retention, sharing, access policies, and future delivery extensions

@@ -12,8 +12,8 @@ android {
         applicationId = "com.streakguard.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 12
-        versionName = "0.4.4"
+        versionCode = 13
+        versionName = "0.4.5"
         testInstrumentationRunner = "com.streakguard.app.OptimizedSmokeRunner"
     }
 

@@ -64,12 +64,16 @@ class MainActivity : ComponentActivity() {
                         onDone = { splashDone = true },
                     )
                 } else {
-                    StreakGuardNav(container)
-                    if (onboardingNeeded == true) {
-                        OnboardingDialog(
-                            container = container,
-                            onDone = { onboardingNeeded = false },
-                        )
+                    com.streakguard.app.ui.battery.BatteryReliabilityHost(
+                        store = container.settingsStore, ready = onboardingNeeded == false,
+                    ) {
+                        StreakGuardNav(container)
+                        if (onboardingNeeded == true) {
+                            OnboardingDialog(
+                                container = container,
+                                onDone = { onboardingNeeded = false },
+                            )
+                        }
                     }
                 }
             }

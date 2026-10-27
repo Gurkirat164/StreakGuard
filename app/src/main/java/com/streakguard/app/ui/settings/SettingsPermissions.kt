@@ -2,7 +2,7 @@ package com.streakguard.app.ui.settings
 
 internal enum class SettingsPermission { NOTIFICATIONS, EXACT_ALARMS }
 
-/** Granted permissions never produce a row; an empty list hides the whole card. */
+/** Granted notification/alarm permissions produce no rows; battery settings remain separate. */
 internal fun missingSettingsPermissions(
     notificationsGranted: Boolean,
     exactAlarmsGranted: Boolean,

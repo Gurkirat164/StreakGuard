@@ -11,7 +11,7 @@
 | Java/JVM target | 17 |
 | Android compile / target SDK | 37 / 37 |
 | Minimum Android SDK | 26 (Android 8.0) |
-| App version | 0.4.4 (`versionCode` 12) |
+| App version | 0.4.5 (`versionCode` 13) |
 
 Use JDK 17 and an Android Studio version compatible with the configured Android
 Gradle Plugin. Install Android SDK platform 37 and let Gradle resolve dependencies.

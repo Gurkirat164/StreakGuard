@@ -1,7 +1,7 @@
 # Overview
 
 StreakGuard is an Android app written in Kotlin with Jetpack Compose, package
-`com.streakguard.app`. The current version is **0.4.4**, Android version code **12**.
+`com.streakguard.app`. The current version is **0.4.5**, Android version code **13**.
 
 It checks LeetCode's Problem of the Day using your public username. Three reminder
 stages default to 6, 3, and 1 hours before the **00:00 UTC** reset. A confirmed

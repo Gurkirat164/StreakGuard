@@ -91,6 +91,7 @@ fun SettingsScreen(container: AppContainer) {
     val vm: SettingsViewModel = viewModel(factory = remember { SettingsViewModel.Factory(container) })
     val context = LocalContext.current
     val activity = LocalActivity.current
+    val battery = com.streakguard.app.ui.battery.LocalBatterySettings.current
     var editUsername by remember { mutableStateOf(false) }
     var editTiers by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
@@ -338,9 +339,12 @@ fun SettingsScreen(container: AppContainer) {
             ToggleRow("Sync when app opens", "Trigger instant Sync", vm.syncOnOpen, vm::onSyncOnOpenChange, vm.initialized)
         }
         val missingPermissions = missingSettingsPermissions(notifGranted, exactGranted)
-        if (missingPermissions.isNotEmpty()) {
+        // Battery settings remain reachable even after all grants or permanent prompt suppression.
+        run {
             SettingsModule("Permissions", R.drawable.ic_settings_shield, contentSpacing = 20.5.dp,
-                headerFont = SettingsCardFont, headerBadge = { PermissionActionBadge() }) {
+                headerFont = SettingsCardFont, headerBadge = {
+                    if (missingPermissions.isNotEmpty() || battery.status.restricted) PermissionActionBadge()
+                }) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     missingPermissions.forEach { permission ->
                         when (permission) {
@@ -354,6 +358,8 @@ fun SettingsScreen(container: AppContainer) {
                                 descriptionFont = PermissionDescriptionFont, onClick = ::openAlarmSettings)
                         }
                     }
+                    BatteryPermissionCard(battery.status.restricted, battery.openSettings)
+                    battery.error?.let { Text(it, color = Tertiary, fontSize = 12.sp) }
                 }
             }
         }
@@ -413,6 +419,40 @@ private fun PermissionActionBadge() {
         Text("ACTION REQUIRED", color = Primary, fontFamily = CountdownFont, fontSize = 11.sp,
             lineHeight = 16.5.sp, fontWeight = FontWeight.Bold, letterSpacing = .55.sp,
             maxLines = 1, softWrap = false)
+    }
+}
+
+/** Approved battery card 2: compact action, status below the title, warning below the row. */
+@Composable
+private fun BatteryPermissionCard(restricted: Boolean, onOpenSettings: () -> Unit) {
+    val color = if (restricted) SettingsAmber else SettingsSafe
+    Column(Modifier.fillMaxWidth().heightIn(min = 112.dp)
+        .background(Sunken, RoundedCornerShape(12.dp))
+        .border(1.dp, SettingsInset, RoundedCornerShape(12.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(40.dp).background(color.copy(alpha = .1f), RoundedCornerShape(12.dp))
+                .border(1.dp, color.copy(alpha = .25f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center) {
+                DesignIcon(R.drawable.ic_settings_battery, color, 24)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Battery optimisation", color = Color.White, fontFamily = SettingsCardFont,
+                    fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 21.sp, letterSpacing = (-.35).sp)
+                Text(if (restricted) "RESTRICTED" else "UNRESTRICTED", color = color,
+                    fontFamily = CountdownFont, fontWeight = FontWeight.Bold, fontSize = 10.sp, lineHeight = 15.sp,
+                    modifier = Modifier.background(color.copy(alpha = .15f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 5.dp))
+            }
+            Box(Modifier.background(Primary, RoundedCornerShape(8.dp))
+                .clickable(role = Role.Button, onClick = onOpenSettings)
+                .padding(horizontal = 14.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+                Text("Settings", color = SettingsThumb, fontFamily = SettingsCardFont,
+                    fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 18.sp, letterSpacing = (-.12).sp)
+            }
+        }
+        Text(if (restricted) "Battery restrictions may delay\nor stop reminders." else "Unrestricted background usage is allowed.",
+            color = SettingsTelemetry, fontFamily = PermissionDescriptionFont, fontSize = 11.sp, lineHeight = 15.sp)
     }
 }
 
