@@ -9,7 +9,9 @@ import androidx.lifecycle.viewModelScope
 import com.streakguard.app.di.AppContainer
 import com.streakguard.app.util.TimeUtils
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.snapshotFlow
 
 data class PlatformUiState(
     val platformId: String,
@@ -52,13 +54,21 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     var initialized by mutableStateOf(false)
         private set
 
-    private var autoRefreshDone = false
 
     init {
         viewModelScope.launch {
             loadFromCache()
             initialized = true
-            maybeAutoRefresh()
+            container.platformRegistry.platforms.forEach { platform ->
+                viewModelScope.launch {
+                    combine(
+                        container.settingsStore.username(platform.id),
+                        container.settingsStore.checkedUsername(platform.id),
+                        container.database.checkLogDao().getRecent(1),
+                        container.settingsStore.use24HourTime,
+                    ) { _, _, _, _ -> Unit }.collect { loadFromCache() }
+                }
+            }
         }
     }
 
@@ -69,24 +79,26 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         platforms = container.platformRegistry.platforms.map { platform ->
             val username = runCatching { container.settingsStore.username(platform.id).first() }
                 .getOrDefault("")
+            val matchesUsername = container.settingsStore.checkedUsername(platform.id).first() == username
             val cached = runCatching {
                 container.database.checkLogDao().getForDate(platform.id, todayUtc)
-            }.getOrNull()
+            }.getOrNull().takeIf { matchesUsername }
             // Streak stays cached until a newer value arrives.
             val latest = runCatching {
                 container.database.checkLogDao().getLatest(platform.id)
-            }.getOrNull()
+            }.getOrNull().takeIf { matchesUsername }
             cached?.checkedAtEpoch?.let { epoch ->
                 if (latestEpoch == null || epoch > latestEpoch!!) latestEpoch = epoch
             }
-            val known = cached?.known == true
+            val completedDay = container.settingsStore.isCompleted(platform.id, todayUtc)
+            val known = completedDay || cached?.known == true
             PlatformUiState(
                 platformId = platform.id,
                 displayName = platform.displayName,
                 username = username,
                 challengeTitle = cached?.challengeTitle,
                 challengeUrl = cached?.challengeUrl,
-                completed = if (known) cached!!.completed else null,
+                completed = if (completedDay) true else if (known) cached?.completed else null,
                 streak = cached?.streak ?: latest?.streak,
                 difficulty = cached?.difficulty,
                 questionNumber = cached?.questionNumber,
@@ -95,24 +107,17 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             )
         }
         lastCheckedText = latestEpoch?.let {
-            "Last checked " + TimeUtils.formatLocalTime(container.appContext(), it)
+            "Last checked " + TimeUtils.formatLocalTime(container.appContext(), it,
+                container.settingsStore.use24HourTime.first())
         }
     }
 
-    /**
-     * After a UTC-day rollover (or a never-completed first load), fetch once
-     * automatically so the card doesn't sit on stale data. Runs at most once
-     * per ViewModel lifetime.
-     */
-    private fun maybeAutoRefresh() {
-        if (autoRefreshDone || isChecking) return
-        val needsRefresh = platforms.any { platform ->
-            platform.username.isNotBlank() &&
-                (platform.questionMissing || platform.statusUnknown)
+    fun refreshOnOpen() {
+        viewModelScope.launch {
+            snapshotFlow { initialized }.first { it }
+            if (!isChecking) loadFromCache()
+            if (container.settingsStore.syncOnOpen.first()) checkNow()
         }
-        if (!needsRefresh) return
-        autoRefreshDone = true
-        checkNow()
     }
 
     fun checkNow() {

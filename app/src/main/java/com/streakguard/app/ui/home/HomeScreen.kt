@@ -12,7 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -25,8 +25,11 @@ import com.streakguard.app.ui.theme.TextMuted
 
 @Composable
 fun HomeScreen(container: AppContainer) {
-    // Shared with the LeetCode tab so both stay in sync.
-    val activity = LocalContext.current as ComponentActivity
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.SCREEN_OPENED, "screen" to "today")
+    }
+    // Activity-scoped so refresh-on-open and this page use the same state.
+    val activity = LocalActivity.current as ComponentActivity
     val vm: HomeViewModel = viewModel(
         viewModelStoreOwner = activity,
         factory = remember { HomeViewModel.Factory(container) },

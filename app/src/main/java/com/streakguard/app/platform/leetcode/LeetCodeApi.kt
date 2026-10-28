@@ -36,7 +36,18 @@ private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
  */
 class LeetCodeApi(private val client: OkHttpClient) {
 
+    /** null means unavailable; false means the server explicitly returned no matching profile. */
+    suspend fun profileExists(username: String): Boolean? {
+        val root = postGraphql("""{ matchedUser(username: "${safeUsername(username)}") { username } }""") ?: return null
+        if (root.has("errors")) return null
+        val data = root.optJSONObject("data") ?: return null
+        if (!data.has("matchedUser")) return null
+        return data.optJSONObject("matchedUser")?.optString("username")?.isNotBlank() == true
+    }
+
     private suspend fun postGraphql(query: String): JSONObject? = withContext(Dispatchers.IO) {
+        val started = android.os.SystemClock.elapsedRealtime()
+        com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.API_STARTED, "api" to "leetcode_graphql")
         runCatching {
             val body = JSONObject().put("query", query).toString().toRequestBody(JSON_MEDIA_TYPE)
             val request = Request.Builder()
@@ -46,10 +57,17 @@ class LeetCodeApi(private val client: OkHttpClient) {
                 .header("Referer", "https://leetcode.com/")
                 .build()
             client.newCall(request).execute().use { response ->
+                com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.API_FINISHED,
+                    "api" to "leetcode_graphql", "http_status" to response.code,
+                    "duration_ms" to android.os.SystemClock.elapsedRealtime() - started)
                 if (!response.isSuccessful) return@runCatching null
                 val text = response.body?.string() ?: return@runCatching null
                 JSONObject(text)
             }
+        }.onFailure {
+            com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.API_FAILED,
+                "api" to "leetcode_graphql", "error_type" to it.javaClass.simpleName,
+                "duration_ms" to android.os.SystemClock.elapsedRealtime() - started)
         }.getOrNull()
     }
 
@@ -79,10 +97,11 @@ class LeetCodeApi(private val client: OkHttpClient) {
     suspend fun getRecentSubmissions(username: String, limit: Int = 20): List<Submission>? {
         val query = """{ recentAcSubmissionList(username: "${safeUsername(username)}", limit: $limit) { titleSlug timestamp } }"""
         val root = postGraphql(query) ?: return null
+        if (root.has("errors")) return null
         return runCatching {
             val arr = root.getJSONObject("data").optJSONArray("recentAcSubmissionList")
-                ?: return@runCatching emptyList<Submission>()
-            buildList {
+                ?: return@runCatching null
+            buildList<Submission> {
                 for (i in 0 until arr.length()) {
                     val obj = arr.optJSONObject(i) ?: continue
                     val slug = obj.optString("titleSlug", "")

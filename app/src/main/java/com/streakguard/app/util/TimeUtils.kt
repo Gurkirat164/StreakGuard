@@ -50,14 +50,12 @@ object TimeUtils {
      * following the device's 12/24-hour clock setting. Falls back to
      * 12-hour format when the setting can't be read.
      */
-    fun formatLocalTime(context: android.content.Context, epochMillis: Long): String {
-        val use24Hour = runCatching {
+    fun formatLocalTime(context: android.content.Context, epochMillis: Long, use24HourTime: Boolean? = null): String {
+        val use24Hour = use24HourTime ?: runCatching {
             android.text.format.DateFormat.is24HourFormat(context)
         }.getOrDefault(false)
-        val pattern = if (use24Hour) "HH:mm" else "hh:mm a"
-        return Instant.ofEpochMilli(epochMillis)
-            .atZone(ZoneId.systemDefault())
-            .format(DateTimeFormatter.ofPattern(pattern))
+        return ClockFormat.format(Instant.ofEpochMilli(epochMillis)
+            .atZone(ZoneId.systemDefault()).toLocalTime(), use24Hour)
     }
 
     /**

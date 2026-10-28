@@ -1,16 +1,11 @@
 package com.streakguard.app.ui.theme
 
-import android.app.Activity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.core.view.WindowCompat
 import com.streakguard.app.R
 
 /** Headline + body typeface (Developer Suite). */
@@ -72,20 +67,10 @@ private val StreakGuardColors = darkColorScheme(
 /**
  * Always-dark theme matching the Developer Suite palette. No dynamic color.
  *
- * Also forces the system status bar dark with light icons so it matches the
- * app's top bar on every API level (the XML theme covers the launch phase).
+ * MainActivity owns edge-to-edge and light system icons through AndroidX.
  */
 @Composable
 fun StreakGuardTheme(content: @Composable () -> Unit) {
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            window.statusBarColor = AppBackground.toArgb()
-            window.navigationBarColor = AppBackground.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-        }
-    }
     MaterialTheme(
         colorScheme = StreakGuardColors,
         typography = StreakGuardTypography,

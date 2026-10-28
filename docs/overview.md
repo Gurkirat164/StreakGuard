@@ -1,26 +1,30 @@
 # Overview
 
-StreakGuard is an Android app (Kotlin + Jetpack Compose, package
-`com.streakguard.app`, current version 0.2.0) that protects your daily coding
-streak.
+StreakGuard is an Android app written in Kotlin with Jetpack Compose, package
+`com.streakguard.app`. The current version is **0.4.5**, Android version code **13**.
 
-**What it does today:** once a day, at a time you choose (default 9:00 PM), it
-checks whether you solved LeetCode's Problem of the Day. If you haven't, it
-sends you a notification. If you have, it stays silent (unless you enable the
-optional "confirm when done" notification).
+It checks LeetCode's Problem of the Day using your public username. Three reminder
+stages default to 6, 3, and 1 hours before the **00:00 UTC** reset. A confirmed
+unsolved result sends a notification; a solved result stays silent. Connection/API
+failures show one notice per continuous outage and use bounded retries.
 
-**Key properties of the current build:**
+The Today screen displays cached challenge details, completion status, streak,
+and a countdown. Silent refreshes run periodically (15 minutes by default), on
+app open when enabled, and at UTC midnight. Settings provides username validation,
+custom reminder times, 12/24-hour format, display timezone, haptics, the disabled alarm switch, sync preferences, permission shortcuts,
+a test notification, and local-data deletion. These are the only two main screens.
 
-- Fully on-device. No developer server, no account, no password. The only
-  thing you enter is your public LeetCode username.
-- Checks LeetCode's public GraphQL API for today's challenge and your recent
-  submissions.
-- A platform is "done" for the day when you have an accepted submission for
-  today's challenge timestamped at or after the start of the current UTC day
-  (LeetCode flips its day at UTC midnight).
-- Results are cached on the device per UTC day: reopening the app shows the
-  last check instead of refetching.
-- All times shown in the UI use the device's local timezone; the backend
-  always works in UTC.
-- Extensible through the `StreakPlatform` plugin interface — new platforms are
-  added by implementing the interface and registering one line.
+Checks run on the device without a StreakGuard account or server. Requests to
+LeetCode include the public username. Completion means a recent accepted submission
+for today's challenge at or after the start of the current UTC day.
+
+The Settings timezone defaults to UTC and controls its reminder-time display.
+Today timestamps use the device timezone. Changing the display timezone does not
+move the reset or reminder instants.
+
+Alarm ringing is implemented but disabled by `AlarmFeature.ENABLED = false`.
+Ordinary reminder notifications and retries remain active. Dedicated Settings
+controls are present; explicit user approval and device verification are still required before enabling ringing.
+
+The platform interface and history support extension, but Settings and reminder
+scheduling/delivery currently need changes to support platforms beyond LeetCode.

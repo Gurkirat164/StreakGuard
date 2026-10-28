@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,7 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.streakguard.app.R
-import com.streakguard.app.ui.theme.SplashBackground
+import com.streakguard.app.ui.theme.AppBackground
 import kotlinx.coroutines.delay
 
 private const val SPLASH_MAX_MILLIS = 8_000L
@@ -52,7 +53,8 @@ fun StaticSplashScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(SplashBackground),
+            .background(AppBackground)
+            .safeDrawingPadding(),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

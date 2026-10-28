@@ -5,17 +5,16 @@
          neutral background so there is no white flash and no white status bar. -->
     <style name="Theme.StreakGuard" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">#0B111E</item>
-        <item name="android:statusBarColor">#0B111E</item>
-        <item name="android:navigationBarColor">#0B111E</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
-    <!-- System splash shown before the first frame; hands off to the animated
-         in-app splash (same background, so the transition is seamless). -->
+    <!-- System splash shown before the first frame. The padded logo preserves
+         the flame's proportions and keeps it inside Android's circular mask. -->
     <style name="Theme.StreakGuard.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">#0B111E</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_flame</item>
-        <item name="windowSplashScreenAnimationDuration">1000</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
         <item name="postSplashScreenTheme">@style/Theme.StreakGuard</item>
     </style>
 </resources>

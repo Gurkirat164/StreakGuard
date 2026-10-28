@@ -1,9 +1,13 @@
 package com.streakguard.app.ui
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -14,22 +18,27 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.streakguard.app.di.AppContainer
+import com.streakguard.app.R
 import com.streakguard.app.ui.home.HomeScreen
-import com.streakguard.app.ui.leetcode.LeetCodeScreen
 import com.streakguard.app.ui.settings.SettingsScreen
 import com.streakguard.app.ui.theme.Primary
+import com.streakguard.app.ui.theme.JetBrainsMonoFontFamily
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
 private val Tabs = listOf(
     Tab("today", "Today", Icons.Filled.DateRange),
-    Tab("leetcode", "LeetCode", Icons.Filled.List),
     Tab("settings", "Settings", Icons.Filled.Settings),
 )
 
@@ -37,8 +46,10 @@ private val Tabs = listOf(
 fun StreakGuardNav(container: AppContainer) {
     val navController = rememberNavController()
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(containerColor = Color(0xFF080E1B), tonalElevation = 0.dp,
+                windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)) {
                 val backStack by navController.currentBackStackEntryAsState()
                 val currentRoute = backStack?.destination?.route
                 Tabs.forEach { tab ->
@@ -53,12 +64,18 @@ fun StreakGuardNav(container: AppContainer) {
                                 restoreState = true
                             }
                         },
-                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label) },
+                        icon = {
+                            if (tab.route == "today") Icon(painterResource(R.drawable.ic_flame), contentDescription = tab.label)
+                            else Icon(tab.icon, contentDescription = tab.label)
+                        },
+                        label = { Text(tab.label, fontFamily = JetBrainsMonoFontFamily,
+                            fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Primary,
                             selectedTextColor = Primary,
-                            indicatorColor = Primary.copy(alpha = 0.16f),
+                            unselectedIconColor = Color(0xFFAB8980),
+                            unselectedTextColor = Color(0xFFAB8980),
+                            indicatorColor = Color.Transparent,
                         ),
                     )
                 }
@@ -68,10 +85,9 @@ fun StreakGuardNav(container: AppContainer) {
         NavHost(
             navController = navController,
             startDestination = "today",
-            modifier = Modifier.padding(padding),
+            modifier = Modifier.padding(padding).consumeWindowInsets(padding),
         ) {
             composable("today") { HomeScreen(container = container) }
-            composable("leetcode") { LeetCodeScreen(container = container) }
             composable("settings") { SettingsScreen(container = container) }
         }
     }

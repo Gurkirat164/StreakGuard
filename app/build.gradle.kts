@@ -12,19 +12,31 @@ android {
         applicationId = "com.streakguard.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 7
-        versionName = "0.3.1"
+        versionCode = 13
+        versionName = "0.4.5"
+        testInstrumentationRunner = "com.streakguard.app.OptimizedSmokeRunner"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
+        // Isolated, debug-signed install using the same R8/resource rules as release.
+        // Never publish this variant; it exists to exercise optimized code on a device.
+        create("optimizedTest") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".qa"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+            proguardFiles("optimized-test-rules.pro")
+        }
     }
+    testBuildType = if (providers.gradleProperty("optimizedSmoke").isPresent) "optimizedTest" else "debug"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -65,6 +77,8 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.10.2")
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.datastore:datastore-preferences:1.2.1")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
+    testImplementation("junit:junit:4.13.2")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
 
     implementation("androidx.room:room-runtime:2.8.5")
@@ -73,4 +87,18 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-tooling-preview")
+}
+
+// Keep symbols tied to the exact release, alongside the APK/AAB in CI artifacts.
+// AGP also embeds the R8 mapping in an App Bundle for Play crash deobfuscation.
+val archiveReleaseSymbols by tasks.registering(Zip::class) {
+    dependsOn("minifyReleaseWithR8")
+    from(layout.buildDirectory.dir("outputs/mapping/release")) {
+        include("*.txt", "*.prt")
+    }
+    archiveFileName.set("streakguard-${android.defaultConfig.versionName}-${android.defaultConfig.versionCode}-symbols.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("outputs/release-symbols"))
+}
+tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
+    finalizedBy(archiveReleaseSymbols)
 }
