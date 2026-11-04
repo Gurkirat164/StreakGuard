@@ -13,3 +13,7 @@ The user explicitly approved `0.4.4` with `versionCode` `12` for the Settings V2
 
 The user approved the next patch version, `0.4.5` with `versionCode` `13`, for the
 Settings v3 battery optimisation card and reminder-reliability prompts.
+
+The user explicitly approved `0.4.6` with `versionCode` `14` for the native
+battery-exemption request, single launch reminder, missing-permission warning,
+and conditional Settings permission section on branch `optimizartions`.

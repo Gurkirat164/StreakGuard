@@ -3,7 +3,7 @@
 StreakGuard is an Android app that checks LeetCode's Problem of the Day (POTD)
 and reminds you before the daily reset when it is still unsolved.
 
-Current app version: **0.4.5** (`versionCode` **13**).
+Current app version: **0.4.6** (`versionCode` **14**).
 
 ## How it works
 
@@ -21,7 +21,7 @@ open by default, and at UTC midnight. Background timing depends on Android's
 scheduling and battery restrictions. Cached status appears while fresh data loads.
 
 No StreakGuard server, login, password, or API key is required. Checks run on the
-phone and send your public username to LeetCode. See the [privacy policy](Policies/privacy-policy.html).
+phone and send your public username to LeetCode. See the [privacy policy](https://gurkirat164.github.io/StreakGuard/Policies/).
 
 ## Timezones
 

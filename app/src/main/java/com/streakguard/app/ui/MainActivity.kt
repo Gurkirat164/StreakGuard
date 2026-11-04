@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
         // Keep the silent midnight refresh armed (cheap, idempotent).
         lifecycleScope.launch {
             runCatching { container.alarmScheduler.scheduleMidnightRefresh() }
-            runCatching { container.alarmScheduler.rescheduleFromSettings() }
+            runCatching { container.alarmScheduler.rescheduleFromSettings("app_open") }
             runCatching { container.challengeAlarm.restore() }
             runCatching { container.syncScheduler.schedule(container.settingsStore.syncInterval.first()) }
         }
@@ -84,6 +84,20 @@ class MainActivity : ComponentActivity() {
         val container = (application as StreakGuardApp).container
         com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.APP_OPENED)
         container.diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.PERMISSIONS_SNAPSHOT, container.diagnostics.permissionFields())
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            container.diagnostics.captureRecoveryEvidence("app_open")
+        }
         ViewModelProvider(this, HomeViewModel.Factory(container))[HomeViewModel::class.java].refreshOnOpen()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        val diagnostics = (application as StreakGuardApp).container.diagnostics
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                diagnostics.critical(com.streakguard.app.diagnostics.DiagnosticEvent.RUNTIME_SNAPSHOT,
+                    diagnostics.permissionFields() + mapOf("reason" to "app_background"))
+            }.onFailure { com.streakguard.app.diagnostics.Diagnostics.failure("background_snapshot", it) }
+        }
     }
 }

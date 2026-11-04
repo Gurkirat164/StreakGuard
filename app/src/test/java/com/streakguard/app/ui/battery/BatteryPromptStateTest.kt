@@ -5,60 +5,64 @@ import org.junit.Test
 
 class BatteryPromptStateTest {
     private val optimised = BatteryRestrictionStatus(true, false)
-    private val backgroundLimited = BatteryRestrictionStatus(false, true)
     private val unrestricted = BatteryRestrictionStatus(false, false)
 
-    @Test fun eitherRestrictionShowsFirstPrompt() {
-        listOf(optimised, backgroundLimited, BatteryRestrictionStatus(true, true)).forEach {
-            assertEquals(BatteryPrompt.FIRST, BatteryPromptState().foreground(it, false).prompt)
-        }
+    @Test fun firstVisitRequestsAndroidDirectly() {
+        assertEquals(BatteryPrompt.NATIVE_REQUEST,
+            BatteryPromptState().foreground(optimised, suppressed = false, requestAttempted = false).prompt)
     }
 
-    @Test fun firstDismissalOpensConfirmationAndSecondClosesVisit() {
-        val first = BatteryPromptState().foreground(optimised, false)
-        assertEquals(BatteryPrompt.CONFIRMATION, first.dismiss().prompt)
-        val closed = first.dismiss().dismiss()
+    @Test fun declinedNativeRequestDoesNotImmediatelyShowAnotherDialog() {
+        val waiting = BatteryPromptState().foreground(optimised, false, false).request().background()
+        assertTrue(waiting.awaitingRequestReturn)
+        val returned = waiting.foreground(optimised, false, true)
+        assertEquals(BatteryPrompt.NONE, returned.prompt)
+        assertFalse(returned.awaitingRequestReturn)
+        assertEquals(BatteryPrompt.REMINDER, returned.background().foreground(optimised, false, true).prompt)
+    }
+
+    @Test fun oneDismissalEndsTheVisitWithoutASecondPopup() {
+        val closed = BatteryPromptState().foreground(optimised, false, true).dismiss()
         assertEquals(BatteryPrompt.NONE, closed.prompt)
-        assertEquals(BatteryPrompt.NONE, closed.foreground(optimised, false).prompt)
+        assertEquals(BatteryPrompt.NONE, closed.foreground(optimised, false, true).prompt)
+        assertEquals(BatteryPrompt.REMINDER, closed.background().foreground(optimised, false, true).prompt)
     }
 
-    @Test fun nextVisitRepeatsUnlessPermanentlySuppressed() {
-        val closed = BatteryPromptState().foreground(optimised, false).dismiss().dismiss().background()
-        assertEquals(BatteryPrompt.FIRST, closed.foreground(optimised, false).prompt)
-        assertEquals(BatteryPrompt.NONE, closed.foreground(optimised, true).prompt)
-    }
-
-    @Test fun suppressedLaunchIsSilentForEitherRestriction() {
-        listOf(optimised, backgroundLimited).forEach {
-            assertEquals(BatteryPrompt.NONE, BatteryPromptState().foreground(it, true).prompt)
+    @Test fun suppressionPreventsBothInitialRequestAndLaterReminders() {
+        listOf(false, true).forEach { attempted ->
+            assertEquals(BatteryPrompt.NONE, BatteryPromptState().foreground(optimised, true, attempted).prompt)
         }
     }
 
-    @Test fun repeatedResumeOrRotationDoesNotResetConfirmation() {
-        val confirmation = BatteryPromptState().foreground(optimised, false).dismiss()
-        assertEquals(BatteryPrompt.CONFIRMATION, confirmation.foreground(optimised, false).prompt)
+    @Test fun resumeAndRotationDoNotRestartDismissedReminder() {
+        val closed = BatteryPromptState().foreground(optimised, false, true).dismiss()
+        repeat(3) { assertEquals(BatteryPrompt.NONE, closed.foreground(optimised, false, true).prompt) }
     }
 
-    @Test fun settingsReturnRechecksBothRestrictions() {
-        val waiting = BatteryPromptState().foreground(optimised, false).dismiss().openSettings().background()
-        assertTrue(waiting.awaitingSettingsReturn)
-        val stillRestricted = waiting.foreground(backgroundLimited, false)
-        assertEquals(BatteryPrompt.CONFIRMATION, stillRestricted.prompt)
-        assertFalse(stillRestricted.awaitingSettingsReturn)
-        assertEquals(BatteryPrompt.NONE, waiting.foreground(unrestricted, false).prompt)
+    @Test fun manualRequestWorksWhenAutomaticPromptsAreSuppressed() {
+        val manual = BatteryPromptState().foreground(optimised, true, true).request().background()
+        assertTrue(manual.awaitingRequestReturn)
+        assertEquals(BatteryPrompt.NONE, manual.foreground(optimised, true, true).prompt)
     }
 
-    @Test fun manualSettingsRoundTripDoesNotReopenDismissedPrompts() {
-        val manual = BatteryPromptState().foreground(optimised, false).dismiss().dismiss()
-            .openSettings().background()
-        assertEquals(BatteryPrompt.NONE, manual.foreground(optimised, false).prompt)
+    @Test fun successfulRequestClearsReminder() {
+        val waiting = BatteryPromptState().foreground(optimised, false, true).request().background()
+        assertEquals(BatteryPrompt.NONE, waiting.foreground(unrestricted, false, true).prompt)
     }
 
-    @Test fun clearingBothRestrictionsStopsAllAutomaticPrompts() {
-        assertEquals(BatteryPrompt.NONE, BatteryPromptState().foreground(unrestricted, false).prompt)
-        val showing = BatteryPromptState().foreground(optimised, false)
-        assertEquals(BatteryPrompt.NONE, showing.foreground(unrestricted, false).prompt)
-        assertEquals(BatteryPrompt.FIRST, showing.foreground(unrestricted, false).background()
-            .foreground(optimised, false).prompt)
+    @Test fun existingExemptionSkipsNativeAndCustomRequests() {
+        listOf(false, true).forEach { attempted ->
+            assertEquals(BatteryPrompt.NONE, BatteryPromptState().foreground(unrestricted, false, attempted).prompt)
+        }
+    }
+
+    @Test fun revokingExemptionShowsReminderOnNextVisit() {
+        val granted = BatteryPromptState().foreground(unrestricted, false, true)
+        assertEquals(BatteryPrompt.REMINDER, granted.background().foreground(optimised, false, true).prompt)
+    }
+
+    @Test fun separateBackgroundRestrictionDoesNotRepeatAnAlreadyGrantedExemption() {
+        assertEquals(BatteryPrompt.NONE,
+            BatteryPromptState().foreground(BatteryRestrictionStatus(false, true), false, true).prompt)
     }
 }

@@ -87,7 +87,11 @@ fun StreakGuardNav(container: AppContainer) {
             startDestination = "today",
             modifier = Modifier.padding(padding).consumeWindowInsets(padding),
         ) {
-            composable("today") { HomeScreen(container = container) }
+            composable("today") {
+                HomeScreen(container = container, onOpenPermissions = {
+                    navController.navigate("settings") { launchSingleTop = true }
+                })
+            }
             composable("settings") { SettingsScreen(container = container) }
         }
     }

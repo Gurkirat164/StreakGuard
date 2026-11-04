@@ -62,6 +62,9 @@ class SettingsStore(private val context: Context) {
     val batteryPromptsSuppressed = context.dataStore.data.map {
         it[booleanPreferencesKey("battery_prompts_suppressed")] ?: false
     }.distinctUntilChanged()
+    val batteryRequestAttempted = context.dataStore.data.map {
+        it[booleanPreferencesKey("battery_request_attempted")] ?: false
+    }.distinctUntilChanged()
     val reminderMinutes = context.dataStore.data.map { prefs ->
         com.streakguard.app.schedule.ReminderSchedule.fromStoredValues(
             prefs[stringPreferencesKey("reminder_minutes")], prefs[stringPreferencesKey("reminder_hours")])
@@ -82,6 +85,9 @@ class SettingsStore(private val context: Context) {
     suspend fun setAlarmsEnabled(value: Boolean) { context.dataStore.edit { it[booleanPreferencesKey("alarms_enabled")] = value } }
     suspend fun setBatteryPromptsSuppressed(value: Boolean) {
         context.dataStore.edit { it[booleanPreferencesKey("battery_prompts_suppressed")] = value }
+    }
+    suspend fun markBatteryRequestAttempted() {
+        context.dataStore.edit { it[booleanPreferencesKey("battery_request_attempted")] = true }
     }
     suspend fun setReminderMinutes(value: List<Int>) {
         require(com.streakguard.app.schedule.ReminderSchedule.valid(value))

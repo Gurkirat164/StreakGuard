@@ -49,11 +49,16 @@ No automatic report upload is configured. See [Debug diagnostics](diagnostics.md
 ## Screens and settings
 
 - **Today:** challenge/status card, challenge details and browser action, streak,
-  countdown, manual check, and last-checked time.
+  countdown, manual check, last-checked time, and a persistent warning while
+  notification or exact-alarm access is missing.
 - **Settings:** LeetCode username and public-profile connection test; reminder
   enable switch; custom-time popup; display-timezone selector; haptics; Alarm Settings; compact 12 hr / 24 hr selector first under Others; sync interval
-  and sync-on-open toggle; shortcuts for missing notification/exact-alarm
-  permissions; test notification; local-data deletion; version and privacy link.
+  and sync-on-open toggle; actions for missing notification/exact-alarm access
+  and battery exemption (the Permissions module hides when all are granted);
+  test notification; local-data deletion; version and privacy link.
+- Battery approval uses Android's native dialog after onboarding. Later opens
+  show one reminder while the exemption is missing, until granted or suppressed
+  with “Don't show again”. See [Battery reminder prompts](battery-reminder-prompts.md).
 - Settings switches save automatically; reminder-time drafts require Save. Changing username or reminder times re-arms reminders;
   disabling reminders cancels reminder work/retries. Silent sync is separate.
 - Local-data deletion resets preferences/history and notification/delivery/alarm

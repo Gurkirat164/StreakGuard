@@ -69,7 +69,7 @@ class AppContainer(context: Context,
 
     suspend fun stopCompletedDayWork() {
         // Keep tomorrow's daily alarms and the UTC-midnight refresh.
-        alarmScheduler.rescheduleFromSettings()
+        alarmScheduler.rescheduleFromSettings("day_completed")
         (0..2).forEach(alarmScheduler::cancelReminderRetry)
         notificationHelper.cancelReminders("leetcode")
         challengeAlarm.stopFor("leetcode", com.streakguard.app.util.TimeUtils.utcToday())

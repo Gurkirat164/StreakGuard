@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.first
 class MidnightRefreshReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.MIDNIGHT_RECEIVED,
+        com.streakguard.app.diagnostics.Diagnostics.critical(com.streakguard.app.diagnostics.DiagnosticEvent.MIDNIGHT_RECEIVED,
             "attempt" to intent.getIntExtra(EXTRA_RETRY_ATTEMPT, 0))
         val pending = goAsync()
         val attempt = intent.getIntExtra(EXTRA_RETRY_ATTEMPT, 0)
@@ -46,7 +46,7 @@ class MidnightRefreshReceiver : BroadcastReceiver() {
                     }
                 }
             } finally {
-                runCatching { app.container.alarmScheduler.rescheduleFromSettings() }
+                runCatching { app.container.alarmScheduler.rescheduleFromSettings("midnight_rearm") }
                 runCatching { app.container.syncScheduler.schedule(app.container.settingsStore.syncInterval.first()) }
                 pending.finish()
             }

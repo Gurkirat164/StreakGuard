@@ -124,11 +124,13 @@ fun SettingsScreen(container: AppContainer) {
         // Keep Grant useful by taking the user to the app's notification settings.
         if (!granted && activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            battery.awaitOtherPermissionReturn()
             context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
         }
     }
     fun openNotificationSettings() {
+        battery.awaitOtherPermissionReturn()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -139,6 +141,7 @@ fun SettingsScreen(container: AppContainer) {
     }
     fun openAlarmSettings() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            battery.awaitOtherPermissionReturn()
             context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
                 Uri.parse("package:${context.packageName}")))
         }
@@ -338,12 +341,11 @@ fun SettingsScreen(container: AppContainer) {
             Spacer(Modifier.height(8.dp))
             ToggleRow("Sync when app opens", "Trigger instant Sync", vm.syncOnOpen, vm::onSyncOnOpenChange, vm.initialized)
         }
-        val missingPermissions = missingSettingsPermissions(notifGranted, exactGranted)
-        // Battery settings remain reachable even after all grants or permanent prompt suppression.
-        run {
+        val missingPermissions = missingSettingsPermissions(notifGranted, exactGranted, !battery.status.optimisationEnabled)
+        if (missingPermissions.isNotEmpty()) {
             SettingsModule("Permissions", R.drawable.ic_settings_shield, contentSpacing = 20.5.dp,
                 headerFont = SettingsCardFont, headerBadge = {
-                    if (missingPermissions.isNotEmpty() || battery.status.restricted) PermissionActionBadge()
+                    PermissionActionBadge()
                 }) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     missingPermissions.forEach { permission ->
@@ -356,9 +358,9 @@ fun SettingsScreen(container: AppContainer) {
                                 "Exact alarms", "On-time reminders", R.drawable.ic_settings_alarm_on,
                                 SettingsAmber, "Enable", primaryAction = true, status = "DISABLED", statusColor = SettingsAmber,
                                 descriptionFont = PermissionDescriptionFont, onClick = ::openAlarmSettings)
+                            SettingsPermission.BATTERY -> BatteryPermissionCard(battery.requestExemption)
                         }
                     }
-                    BatteryPermissionCard(battery.status.restricted, battery.openSettings)
                     battery.error?.let { Text(it, color = Tertiary, fontSize = 12.sp) }
                 }
             }
@@ -422,10 +424,10 @@ private fun PermissionActionBadge() {
     }
 }
 
-/** Approved battery card 2: compact action, status below the title, warning below the row. */
+/** Missing exemption only; the action opens Android's approval dialog. */
 @Composable
-private fun BatteryPermissionCard(restricted: Boolean, onOpenSettings: () -> Unit) {
-    val color = if (restricted) SettingsAmber else SettingsSafe
+private fun BatteryPermissionCard(onRequestExemption: () -> Unit) {
+    val color = SettingsAmber
     Column(Modifier.fillMaxWidth().heightIn(min = 112.dp)
         .background(Sunken, RoundedCornerShape(12.dp))
         .border(1.dp, SettingsInset, RoundedCornerShape(12.dp)).padding(14.dp),
@@ -439,19 +441,19 @@ private fun BatteryPermissionCard(restricted: Boolean, onOpenSettings: () -> Uni
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Battery optimisation", color = Color.White, fontFamily = SettingsCardFont,
                     fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 21.sp, letterSpacing = (-.35).sp)
-                Text(if (restricted) "RESTRICTED" else "UNRESTRICTED", color = color,
+                Text("RESTRICTED", color = color,
                     fontFamily = CountdownFont, fontWeight = FontWeight.Bold, fontSize = 10.sp, lineHeight = 15.sp,
                     modifier = Modifier.background(color.copy(alpha = .15f), RoundedCornerShape(4.dp))
                         .padding(horizontal = 5.dp))
             }
-            Box(Modifier.background(Primary, RoundedCornerShape(8.dp))
-                .clickable(role = Role.Button, onClick = onOpenSettings)
+            Box(Modifier.heightIn(min = 48.dp).background(Primary, RoundedCornerShape(8.dp))
+                .clickable(role = Role.Button, onClick = onRequestExemption)
                 .padding(horizontal = 14.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
-                Text("Settings", color = SettingsThumb, fontFamily = SettingsCardFont,
+                Text("Allow", color = SettingsThumb, fontFamily = SettingsCardFont,
                     fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 18.sp, letterSpacing = (-.12).sp)
             }
         }
-        Text(if (restricted) "Battery restrictions may delay\nor stop reminders." else "Unrestricted background usage is allowed.",
+        Text("Battery restrictions may delay\nor stop reminders.",
             color = SettingsTelemetry, fontFamily = PermissionDescriptionFont, fontSize = 11.sp, lineHeight = 15.sp)
     }
 }

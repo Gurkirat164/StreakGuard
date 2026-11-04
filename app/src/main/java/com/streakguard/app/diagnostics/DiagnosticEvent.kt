@@ -7,7 +7,9 @@ enum class DiagnosticEvent {
     RETRY_CANCELLED, REMINDER_RECEIVED, WORKER_STARTED, WORKER_FINISHED, SYNC_SCHEDULED,
     SYNC_CANCELLED, MIDNIGHT_RECEIVED, SYSTEM_EVENT, NOTIFICATION_POSTED,
     NOTIFICATION_BLOCKED, NOTIFICATION_FAILED, NOTIFICATION_CANCELLED,
-    ALARM_EVENT, REPORT_PREPARED, EVENTS_DROPPED, UNCAUGHT_ERROR
+    ALARM_EVENT, REPORT_PREPARED, EVENTS_DROPPED, UNCAUGHT_ERROR,
+    REMINDER_TRACE, REMINDER_CANCELLED, DIAGNOSTIC_FAILURE, PROCESS_EXIT, RUNTIME_SNAPSHOT,
+    WORK_SNAPSHOT, RECOVERY_AUDIT
 }
 
 /** An allowlist, not a generic message logger: bodies, queries, URLs and usernames cannot be recorded. */
@@ -18,16 +20,21 @@ object DiagnosticFields {
         "reminders", "alarms", "alarm_feature", "sync_on_open", "sync_interval", "username_configured",
         "profile_verified", "platform_enabled", "notifications", "post_permission", "exact_permission",
         "battery_optimization_exempt", "power_save", "network_validated", "api", "count", "version",
-        "version_code", "android_api", "manufacturer", "model", "device_timezone", "device_time")
-    fun encode(fields: Map<String, Any?>): String = fields.filterKeys { it in allowed }.entries
-        .sortedBy { it.key }.joinToString(" ") { (key, value) ->
-            val safe = when (value) {
+        "version_code", "android_api", "manufacturer", "model", "device_timezone", "device_time",
+        "trace_id", "stage", "slot", "at_ms", "work_id", "work_state", "stop_reason",
+        "background_restricted", "standby_bucket", "device_idle", "interactive", "uptime_ms",
+        "boot_count", "exit_at", "exit_reason", "exit_status", "exit_importance", "session_id",
+        "active_after_post", "notification_id", "sound_enabled", "storage_error", "finding")
+    fun safeValues(fields: Map<String, Any?>): Map<String, String> = fields.filterKeys { it in allowed }
+        .mapValues { (_, value) ->
+            when (value) {
                 null -> "unknown"
                 is Number, is Boolean -> value.toString()
                 is Enum<*> -> value.name
                 is String -> value.take(120).replace(Regex("[^A-Za-z0-9_ .,():+/=-]"), "_")
                 else -> "omitted"
             }
-            "$key=$safe"
         }
+    fun encode(fields: Map<String, Any?>): String = safeValues(fields).entries
+        .sortedBy { it.key }.joinToString(" ") { (key, value) -> "$key=$value" }
 }

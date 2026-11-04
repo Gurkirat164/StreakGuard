@@ -20,6 +20,13 @@ import com.streakguard.app.diagnostics.DiagnosticEvent
 
 class SyncScheduler(private val context: Context) {
     suspend fun schedule(minutes: Int) {
+        try { scheduleWork(minutes) } catch (error: Exception) {
+            Diagnostics.failure("schedule_status_sync", error)
+            throw error
+        }
+    }
+
+    private suspend fun scheduleWork(minutes: Int) {
         require(minutes in listOf(15, 30, 60))
         if (com.streakguard.app.data.prefs.SettingsStore(context).isCompleted()) {
             cancel()
@@ -62,18 +69,27 @@ class StatusSyncWorker(context: Context, parameters: WorkerParameters) : Corouti
 
 class ReminderCheckWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
     companion object { private val deliveryMutex = Mutex() }
+    private val traceId get() = inputData.getString("trace_id")
     // WorkManager uses a short foreground check for expedited work on Android 8–11.
     override suspend fun getForegroundInfo(): androidx.work.ForegroundInfo {
         val helper = (applicationContext as StreakGuardApp).container.notificationHelper
         return androidx.work.ForegroundInfo(4000, helper.checkingNotification())
     }
 
-    override suspend fun doWork(): Result = deliveryMutex.withLock {
-        try {
-            checkReminder().also { Diagnostics.log(DiagnosticEvent.WORKER_FINISHED, "kind" to "reminder", "reason" to "returned") }
+    override suspend fun doWork(): Result {
+        Diagnostics.checkpoint(traceId, "worker_started", "work_id" to id.toString())
+        return try {
+            deliveryMutex.withLock {
+                checkReminder().also {
+                    Diagnostics.checkpoint(traceId, "worker_finished")
+                    Diagnostics.log(DiagnosticEvent.WORKER_FINISHED, "trace_id" to traceId, "kind" to "reminder", "reason" to "returned")
+                }
+            }
         } catch (e: CancellationException) {
+            Diagnostics.checkpoint(traceId, "worker_cancelled", "stop_reason" to if (android.os.Build.VERSION.SDK_INT >= 31) stopReason else -1)
             Diagnostics.log(DiagnosticEvent.WORKER_FINISHED, "kind" to "reminder", "reason" to "cancelled"); throw e
         } catch (error: Exception) {
+            Diagnostics.checkpoint(traceId, "worker_failed", "error_type" to error.javaClass.simpleName)
             Diagnostics.log(DiagnosticEvent.WORKER_FINISHED, "kind" to "reminder", "reason" to "failed", "error_type" to error.javaClass.simpleName); throw error
         }
     }
@@ -81,29 +97,41 @@ class ReminderCheckWorker(context: Context, parameters: WorkerParameters) : Coro
     private suspend fun checkReminder(): Result {
         val tier = inputData.getInt("tier", -1)
         val container = (applicationContext as StreakGuardApp).container
-        val day = inputData.getString("day") ?: return Result.success()
+        fun skip(reason: String): Result {
+            Diagnostics.checkpoint(traceId, "skipped", "reason" to reason)
+            Diagnostics.log(DiagnosticEvent.CHECK_SKIPPED, "trace_id" to traceId, "tier" to tier, "reason" to reason)
+            return Result.success()
+        }
+        val day = inputData.getString("day") ?: return skip("missing_day")
         val attempt = inputData.getInt("attempt", 0)
-        val signature = inputData.getString("signature") ?: return Result.success()
+        val signature = inputData.getString("signature") ?: return skip("missing_signature")
         Diagnostics.log(DiagnosticEvent.WORKER_STARTED, "kind" to "reminder", "tier" to tier, "day" to day, "attempt" to attempt)
         val settings = container.settingsStore
         val scheduler = container.alarmScheduler
         val minutes = settings.reminderMinutes.first()
         val key = scheduler.deliveryKey(day, tier)
         val attemptKey = "$key:$signature"
-        suspend fun active(): Boolean = tier in 0..2 && attempt >= 0 &&
-            (tier != 2 || attempt <= ReminderPolicy.MAX_FINAL_RETRIES) &&
-            day == TimeUtils.utcToday() && settings.remindersEnabled.first() &&
-            signature == scheduler.signature() && !container.reminderState.delivered(key) &&
-            !settings.isCompleted(day = day) &&
-            !container.reminderState.attemptFinished(attemptKey, attempt) &&
-            ReminderPolicy.active(java.time.Instant.now(), day, minutes, tier)
+        suspend fun inactiveReason(): String? = when {
+            tier !in 0..2 -> "invalid_tier"
+            attempt < 0 || (tier == 2 && attempt > ReminderPolicy.MAX_FINAL_RETRIES) -> "invalid_attempt"
+            day != TimeUtils.utcToday() -> "wrong_platform_day"
+            !settings.remindersEnabled.first() -> "reminders_disabled"
+            signature != scheduler.signature() -> "settings_changed"
+            container.reminderState.delivered(key) -> "already_delivered"
+            settings.isCompleted(day = day) -> "already_solved"
+            container.reminderState.attemptFinished(attemptKey, attempt) -> "attempt_already_finished"
+            !ReminderPolicy.active(java.time.Instant.now(), day, minutes, tier) -> "outside_delivery_window"
+            else -> null
+        }
 
-        if (!active()) { Diagnostics.log(DiagnosticEvent.CHECK_SKIPPED, "reason" to "inactive_reminder", "tier" to tier); return Result.success() }
+        inactiveReason()?.let { return skip(it) }
+        Diagnostics.checkpoint(traceId, "fetch_started")
         val results = container.checkOrchestrator.runCheck(manual = false)
+        Diagnostics.checkpoint(traceId, "fetch_finished", "completed" to results.firstOrNull()?.completed)
         // A fetch can cross a cutoff, a settings change, or midnight. Recheck before any side effects.
-        if (!active()) { Diagnostics.log(DiagnosticEvent.CHECK_SKIPPED, "reason" to "inactive_after_fetch", "tier" to tier); return Result.success() }
+        inactiveReason()?.let { return skip("after_fetch_$it") }
         return container.checkOrchestrator.ifUnsolved(day) { deliverResult(results, container, tier, day, attempt, signature, minutes, key, attemptKey) }
-            ?: Result.success()
+            ?: skip("solved_before_delivery")
     }
 
     private suspend fun deliverResult(
@@ -114,30 +142,36 @@ class ReminderCheckWorker(context: Context, parameters: WorkerParameters) : Coro
         val settings = container.settingsStore
         val scheduler = container.alarmScheduler
         if (results.isEmpty()) {
+            Diagnostics.checkpoint(traceId, "skipped", "reason" to "no_platform_results")
             scheduler.cancelReminderRetry(tier)
             return Result.success()
         }
         val status = results.first()
         if (status.completed != null) {
             container.reminderState.markDelivered(key)
+            Diagnostics.checkpoint(traceId, "delivery_claimed", "completed" to status.completed)
             scheduler.cancelReminderRetry(tier)
             if (status.completed == false) {
                 if (tier == 2 && com.streakguard.app.notify.AlarmFeature.ENABLED && settings.alarmsEnabled.first()) container.challengeAlarm.start(day, status.platformId,
                     settings.username(status.platformId).first(), status.challengeTitle ?: "Today's challenge")
                 else container.notificationHelper.notifyMissed(status.displayName, status.platformId,
                     status.challengeTitle ?: "Today's challenge", status.challengeUrl ?: "https://leetcode.com",
-                    tier, settings.hapticsEnabled.first())
+                    tier, settings.hapticsEnabled.first(), traceId)
+            } else {
+                Diagnostics.checkpoint(traceId, "skipped", "reason" to "confirmed_solved")
             }
             return Result.success()
         }
 
         val next = ReminderPolicy.nextRetry(java.time.Instant.now(), day, minutes, tier, attempt)
         if (container.reminderState.claimFailureNotice()) {
-            container.notificationHelper.notifyFailure(next != null, settings.hapticsEnabled.first())
+            container.notificationHelper.notifyFailure(next != null, settings.hapticsEnabled.first(), traceId)
         }
         if (next != null) {
+            Diagnostics.checkpoint(traceId, "retry_required", "at" to next.toString())
             scheduler.scheduleReminderRetry(day, tier, attempt + 1, next.toEpochMilli(), signature)
         } else {
+            Diagnostics.checkpoint(traceId, "retry_exhausted", "reason" to "status_unknown")
             scheduler.cancelReminderRetry(tier)
             container.reminderState.markDelivered(key)
             val username = settings.username(status.platformId).first()

@@ -18,13 +18,14 @@ internal fun readBatteryRestrictions(context: Context) = BatteryRestrictionStatu
     }.getOrDefault(true),
 )
 
-/** Use normal Settings pages; no direct exemption request or additional permission is needed. */
-internal fun openBatterySettings(context: Context, status: BatteryRestrictionStatus): Boolean {
+/** Android owns the approval dialog. Fall back only if the device cannot handle the request. */
+internal fun requestBatteryExemption(context: Context): Boolean {
+    if (!readBatteryRestrictions(context).optimisationEnabled) return true
+    val request = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+        "package:${context.packageName}".toUri())
     val appDetails = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${context.packageName}".toUri())
     val optimisationList = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-    val destinations = if (status.backgroundRestricted) listOf(appDetails, optimisationList)
-        else listOf(optimisationList, appDetails)
-    return (destinations + Intent(Settings.ACTION_SETTINGS)).any { intent ->
+    return listOf(request, optimisationList, appDetails).any { intent ->
         runCatching { context.startActivity(intent); true }.getOrDefault(false)
     }
 }

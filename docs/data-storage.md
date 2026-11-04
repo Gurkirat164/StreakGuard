@@ -52,6 +52,8 @@ matches the active username. Today can reuse the most recent streak across days.
 | `reminder_minutes` | `360,180,60` | UTC-reset-relative minute offsets; three descending values in 1–1439, with more than 30 minutes between stages |
 | `use_24_hour_time` | `true` | 24-hour vs 12-hour clock display |
 | `alarms_enabled` | `false` | Ringing preference; Settings cannot enable it while the hard feature gate is false |
+| `battery_prompts_suppressed` | `false` | Permanently suppress automatic battery prompts; manual requests remain available |
+| `battery_request_attempted` | `false` | Initial native battery request was attempted; later visits use the single app reminder |
 | `onboarding_done` | `false` | First-install onboarding completion |
 
 The former `check_hour` / `check_minute` daily-time setting is no longer used.

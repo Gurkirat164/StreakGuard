@@ -55,7 +55,7 @@ class RollingLogStore(
         segment.latest = records.maxOf { it.timestamp }
     }
 
-    @Synchronized fun append(event: String, fields: String = "", timestamp: Long = now()) {
+    @Synchronized fun append(event: String, fields: String = "", timestamp: Long = now(), durable: Boolean = false) {
         load()
         val time = timestamp
         val line = "$time\t${Instant.ofEpochMilli(time)}\t$event\t$fields"
@@ -67,7 +67,10 @@ class RollingLogStore(
             Segment(File(directory, "log-$sequence.txt"), sequence, 0, time, time).also { segments.add(it) }
         }
         try {
-            target.file.appendText(line + "\n", Charsets.UTF_8)
+            java.io.FileOutputStream(target.file, true).use { output ->
+                output.write((line + "\n").toByteArray(Charsets.UTF_8))
+                if (durable) output.fd.sync()
+            }
             target.bytes += bytes
             target.earliest = minOf(target.earliest, time)
             target.latest = maxOf(target.latest, time)
