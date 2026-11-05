@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.streakguard.app.di.AppContainer
 import com.streakguard.app.schedule.ReminderSchedule
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -19,6 +20,12 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     var username by mutableStateOf("")
         private set
     var profileVerified by mutableStateOf(false)
+        private set
+    var usernameStatus by mutableStateOf(com.streakguard.app.domain.UsernameStatus.VALID)
+        private set
+    var isSavingUsername by mutableStateOf(false)
+        private set
+    var usernameSaveError by mutableStateOf<String?>(null)
         private set
     var remindersEnabled by mutableStateOf(true)
         private set
@@ -56,6 +63,15 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     init {
         viewModelScope.launch {
+            combine(container.settingsStore.usernameAccount, container.settingsStore.verifiedUsername("leetcode")) { account, verified ->
+                account to verified
+            }.collect { (account, verified) ->
+                username = account.username
+                usernameStatus = account.status
+                profileVerified = username.isNotBlank() && verified == username
+            }
+        }
+        viewModelScope.launch {
             try {
                 loadSettings()
             } catch (_: Exception) { message = "Couldn't load settings. Please reopen this screen." }
@@ -86,19 +102,39 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             }
         }
     }
-    fun changeUsername(value: String) {
+    fun clearUsernameError() { usernameSaveError = null }
+
+    fun changeUsername(value: String, onSaved: () -> Unit) {
+        if (!initialized || isClearing || isSavingUsername || isTesting) return
         val handle = value.trim().removePrefix("@")
         if (handle.isBlank() || handle.any { it.isWhitespace() }) {
-            message = "Enter a public LeetCode username without spaces."; return
+            usernameSaveError = "Enter a public LeetCode username without spaces."; return
         }
-        edit {
-            container.settingsStore.setUsername("leetcode", handle)
-            container.challengeAlarm.stop()
-            container.settingsStore.setEnabled("leetcode", true)
-            username = handle; profileVerified = false; connectionOk = null; connectionLatency = null
-            container.alarmScheduler.rescheduleFromSettings()
-            container.syncScheduler.schedule(syncInterval)
-            testConnection()
+        isSavingUsername = true
+        usernameSaveError = null
+        viewModelScope.launch {
+            try {
+                edits.withLock {
+                    when (container.usernameManager.save(handle)) {
+                        com.streakguard.app.domain.UsernameSaveResult.INVALID -> {
+                            usernameSaveError = "That public LeetCode profile wasn't found. Check your username."
+                        }
+                        else -> {
+                            connectionOk = null; connectionLatency = null
+                            message = null
+                            container.alarmScheduler.rescheduleFromSettings("username_changed")
+                            container.syncScheduler.schedule(syncInterval)
+                            onSaved()
+                        }
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                usernameSaveError = "Couldn't save your username. Please try again."
+            } finally {
+                isSavingUsername = false
+            }
         }
     }
     fun setReminders(value: Boolean) = edit {
@@ -129,7 +165,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         container.settingsStore.setDisplayTimezone(value); displayTimezone = value
     }
     fun clearData() {
-        if (!initialized || isClearing || isTesting) return
+        if (!initialized || isClearing || isTesting || isSavingUsername) return
         isClearing = true
         viewModelScope.launch {
             try {
@@ -137,6 +173,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                     val workManager = androidx.work.WorkManager.getInstance(container.appContext())
                     workManager.cancelAllWorkByTag("countdown_reminder")
                     workManager.cancelUniqueWork("challenge_status_sync")
+                    container.usernameValidationScheduler.cancel()
                     container.alarmScheduler.cancel()
                     container.checkOrchestrator.clearUserData()
                     container.diagnostics.clear()
@@ -180,7 +217,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
     fun testConnection() {
-        if (isTesting || isClearing || username.isBlank()) return
+        if (isTesting || isClearing || isSavingUsername || username.isBlank()) return
         val handle = username
         isTesting = true
         viewModelScope.launch {

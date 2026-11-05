@@ -1,6 +1,6 @@
 # StreakGuard docs
 
-Documentation for the current repository build: **0.4.6** (`versionCode` **14**).
+Documentation for the current repository build: **0.4.7** (`versionCode` **15**).
 Current behavior is distinguished from the implemented but disabled ringing system.
 Pending work and verification are tracked in [TODO.md](../TODO.md).
 
@@ -12,7 +12,7 @@ Pending work and verification are tracked in [TODO.md](../TODO.md).
 - [Data & storage](data-storage.md) — Room schema, preferences, durable state, and time rules
 - [Building](building.md) — configured toolchain, build/check commands, and release limitations
 - [Debug diagnostics](diagnostics.md) — local logs, retention, sharing, access policies, and future delivery extensions
-- [Vivo notification reliability](vivo-notification-reliability.md) — researched device settings, app improvements, and pending hardware verification
+- [Investigating missing reminders](notification-diagnostics.md) — delivery audit, worker evidence, Android restrictions, and report collection
 - [Versioning](versioning.md) — patch/minor bumps and required user confirmation
 - [Privacy policy](../Policies/privacy-policy.html) — local data and platform requests
 

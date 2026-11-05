@@ -81,8 +81,8 @@ class DailyCheckOrchestrator(
                 difficulty = challenge?.difficulty
                 questionNumber = challenge?.questionNumber
                 completed = platform.isCompletedToday(username)
-                // Once solved, even the optional streak fetch waits until tomorrow.
-                streak = if (completed == true) existing?.streak
+                // A newly configured account still needs its initial streak value.
+                streak = if (completed == true && existing?.streak != null) existing.streak
                     else runCatching { platform.getStreak(username) }.getOrNull()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -147,6 +147,22 @@ class DailyCheckOrchestrator(
     /** Delivery shares the check lock: a concurrent solve cannot race a stale reminder. */
     suspend fun <T> ifUnsolved(day: String, action: suspend () -> T): T? = checkMutex.withLock {
         if (day != TimeUtils.utcToday() || settings.isCompleted(day = day)) null else action()
+    }
+
+    /** Replace account state under the check lock so old responses cannot repopulate its cache. */
+    suspend fun changeUsername(username: String, verified: Boolean) = checkMutex.withLock {
+        settings.saveLeetCodeAccount(username, verified)
+        db.checkLogDao().deleteForPlatform("leetcode")
+        reminderState.clear()
+        notifications.cancelReminders("leetcode")
+        notifications.cancelInvalidUsername()
+        alarm.stop()
+    }
+
+    suspend fun finishUsernameValidation(account: UsernameAccount, exists: Boolean) = checkMutex.withLock {
+        if (settings.finishUsernameValidation(account, exists) && !exists) {
+            notifications.notifyInvalidUsername(settings.hapticsEnabled.first())
+        }
     }
 
     /** Serialize deletion with checks so an in-flight fetch cannot restore deleted data. */

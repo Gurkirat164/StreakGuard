@@ -1,15 +1,21 @@
 # Battery and reminder permissions
 
-Version 0.4.6 (Android version code 14), on branch `optimizartions`, replaces the
-two battery dialogs with Android's direct exemption request and one later reminder.
+Current behavior in version **0.4.7** (Android version code **15**): native
+notification and exact-alarm setup, Android's direct battery-exemption request,
+and one battery reminder on later foreground visits. The battery flow was
+introduced in 0.4.6; 0.4.7 removes the old onboarding dialog and adds the direct
+Today-to-Permissions navigation.
 
 ## First launch
 
-After the splash, onboarding requests notification permission and then opens
-exact-alarm access when needed. It waits for the exact-alarm screen to return
-before completing onboarding. Android's battery-exemption dialog follows, unless
-the exemption is already granted or automatic battery prompts were suppressed.
-Skipping onboarding still permits the initial battery request. Accepting or
+After the splash, Android directly requests notification permission and then opens
+exact-alarm access when needed. There is no app introduction or Skip button.
+The flow waits for the exact-alarm screen to return before saving
+`permission_setup_complete`. Denying notification permission still advances to
+exact-alarm access. Existing installs, including users who skipped the old setup,
+receive this flow once; already granted access is skipped. Later requests remain
+available in Settings. Android's battery-exemption dialog follows, unless
+the exemption is already granted or automatic battery prompts were suppressed. Accepting or
 declining that request ends the flow for this visit; declining does not immediately
 open another app dialog.
 
@@ -34,7 +40,10 @@ restart the prompt in the same visit. A later foreground visit checks again.
 
 Today shows a non-dismissible warning while notifications or exact-alarm access
 are missing. Its copy identifies the missing access; **Review permissions** opens
-Settings. It refreshes on resume and after onboarding and disappears only when
+Settings directly at the Permissions section, without an animated scroll. This
+shortcut uses the same tab navigation as the bottom bar; Today remains reachable
+without restarting. The section jump is consumed once so users can scroll freely
+afterward. The warning refreshes on resume and after permission setup and disappears only when
 both grants are present. Missing battery exemption alone does not show this bar.
 
 Settings → Permissions contains only missing notifications, exact-alarm access,

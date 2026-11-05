@@ -54,5 +54,6 @@ Compare expected reminder times, cancellation reasons, exit timestamps, boot
 counts, and work IDs. A manual test notification only tests immediate posting;
 it does not validate scheduled background execution.
 
-The app version and notification/retry policy are unchanged. Alarm ringing remains
+These diagnostics are included in version **0.4.7** (`versionCode` **15**).
+Ordinary reminders and bounded API retries remain active. Alarm ringing remains
 disabled by `AlarmFeature.ENABLED = false`.

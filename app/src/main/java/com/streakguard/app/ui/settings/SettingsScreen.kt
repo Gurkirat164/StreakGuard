@@ -35,6 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.Font
@@ -55,6 +57,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private const val PRIVACY_POLICY_URL = "https://gurkirat164.github.io/StreakGuard/Policies/"
 // Settings V2 palette and typography from the approved Figma design.
@@ -87,10 +90,17 @@ internal val SettingsCardFont = FontFamily(
 )
 
 @Composable
-fun SettingsScreen(container: AppContainer) {
-    val vm: SettingsViewModel = viewModel(factory = remember { SettingsViewModel.Factory(container) })
+fun SettingsScreen(
+    container: AppContainer,
+    reviewPermissions: Boolean = false,
+    onPermissionsShown: () -> Unit = {},
+) {
     val context = LocalContext.current
-    val activity = LocalActivity.current
+    val activity = LocalActivity.current as androidx.activity.ComponentActivity
+    val vm: SettingsViewModel = viewModel(
+        viewModelStoreOwner = activity,
+        factory = remember { SettingsViewModel.Factory(container) },
+    )
     val battery = com.streakguard.app.ui.battery.LocalBatterySettings.current
     var editUsername by remember { mutableStateOf(false) }
     var editTiers by remember { mutableStateOf(false) }
@@ -105,6 +115,19 @@ fun SettingsScreen(container: AppContainer) {
     var exactGranted by remember { mutableStateOf(container.alarmScheduler.isExactAlarmAllowed()) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+    var permissionsTop by remember { mutableStateOf<Int?>(null) }
+    val missingPermissions = missingSettingsPermissions(notifGranted, exactGranted, !battery.status.optimisationEnabled)
+    LaunchedEffect(reviewPermissions, permissionsTop, scrollState.maxValue) {
+        if (reviewPermissions) {
+            if (missingPermissions.isEmpty()) {
+                onPermissionsShown()
+            } else if (permissionsTop != null && scrollState.maxValue != Int.MAX_VALUE) {
+                scrollState.scrollTo(permissionsTop!!)
+                onPermissionsShown()
+            }
+        }
+    }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -122,7 +145,7 @@ fun SettingsScreen(container: AppContainer) {
         notifGranted = container.notificationHelper.notificationsEnabled()
         // Android stops showing the permission dialog after a permanent denial.
         // Keep Grant useful by taking the user to the app's notification settings.
-        if (!granted && activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        if (!granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
             battery.awaitOtherPermissionReturn()
             context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -148,18 +171,11 @@ fun SettingsScreen(container: AppContainer) {
     }
 
     if (editUsername) {
-        var handle by remember { mutableStateOf(vm.username) }
-        AlertDialog(
-            onDismissRequest = { editUsername = false },
-            title = { Text("LeetCode username") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Use your public handle. No password or cookies are needed.")
-                OutlinedTextField(handle, { handle = it }, label = { Text("Username") },
-                    prefix = { Text("@") }, singleLine = true)
-            } },
-            confirmButton = { TextButton(enabled = handle.trim().removePrefix("@").isNotBlank() && !handle.trim().any { it.isWhitespace() },
-                onClick = { vm.changeUsername(handle); editUsername = false }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { editUsername = false }) { Text("Cancel") } },
+        LeetCodeUsernameDialog(
+            username = vm.username, enabled = vm.initialized && !vm.isClearing,
+            saving = vm.isSavingUsername, error = vm.usernameSaveError, onEdit = vm::clearUsernameError,
+            onSave = { vm.changeUsername(it) { editUsername = false } },
+            onDismiss = { editUsername = false; vm.clearUsernameError() },
         )
     }
     if (editTiers) {
@@ -202,7 +218,7 @@ fun SettingsScreen(container: AppContainer) {
         "Asia/Kolkata" -> "IST"
         else -> DateTimeFormatter.ofPattern("z").withZone(zone).format(now)
     }
-    Column(Modifier.fillMaxSize().background(SettingsCanvas).verticalScroll(rememberScrollState())
+    Column(Modifier.fillMaxSize().background(SettingsCanvas).verticalScroll(scrollState)
         .padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Spacer(Modifier.height(0.dp))
         AppHeader()
@@ -221,7 +237,10 @@ fun SettingsScreen(container: AppContainer) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (vm.profileVerified) DesignIcon(R.drawable.ic_settings_check_circle, Secondary, 14)
                         Text(when { vm.isTesting -> "Verifying public profile…"; vm.profileVerified -> "Public Profile Synced";
-                            vm.username.isBlank() -> "No profile connected"; else -> "Profile not verified" },
+                            vm.username.isBlank() -> "No profile connected";
+                            vm.usernameStatus == com.streakguard.app.domain.UsernameStatus.PENDING -> "Verification pending — will retry online";
+                            vm.usernameStatus == com.streakguard.app.domain.UsernameStatus.INVALID -> "Username not found — update your username";
+                            else -> "Profile not verified" },
                             color = if (vm.profileVerified) Secondary else SettingsMuted, fontSize = 11.sp,
                             lineHeight = 16.sp, letterSpacing = 0.sp)
                     }
@@ -322,7 +341,7 @@ fun SettingsScreen(container: AppContainer) {
                     fontSize = 11.sp, lineHeight = 16.sp)
             }
         }
-        SettingsModule("Sync Interval", R.drawable.ic_settings_sync, "Every ${vm.syncInterval} min") {
+        SettingsModule("Sync Interval", R.drawable.ic_settings_sync, caption = "Every ${vm.syncInterval} min") {
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth().padding(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(15, 30, 60).forEach { minutes ->
@@ -341,9 +360,9 @@ fun SettingsScreen(container: AppContainer) {
             Spacer(Modifier.height(8.dp))
             ToggleRow("Sync when app opens", "Trigger instant Sync", vm.syncOnOpen, vm::onSyncOnOpenChange, vm.initialized)
         }
-        val missingPermissions = missingSettingsPermissions(notifGranted, exactGranted, !battery.status.optimisationEnabled)
         if (missingPermissions.isNotEmpty()) {
             SettingsModule("Permissions", R.drawable.ic_settings_shield, contentSpacing = 20.5.dp,
+                modifier = Modifier.onGloballyPositioned { permissionsTop = it.positionInParent().y.roundToInt() },
                 headerFont = SettingsCardFont, headerBadge = {
                     PermissionActionBadge()
                 }) {
@@ -392,11 +411,12 @@ fun SettingsScreen(container: AppContainer) {
 }
 
 @Composable
-private fun SettingsModule(title: String, icon: Int, caption: String? = null,
+private fun SettingsModule(title: String, icon: Int, modifier: Modifier = Modifier,
+                           caption: String? = null,
                            contentSpacing: Dp = 16.dp, headerBadge: (@Composable () -> Unit)? = null,
                            headerFont: FontFamily = GeistFontFamily,
                            content: @Composable ColumnScope.() -> Unit) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+    Card(modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, if (icon == R.drawable.ic_settings_sync) SettingsButton else SettingsBorder),
         colors = CardDefaults.cardColors(containerColor = SettingsCard)) {
         Column(Modifier.padding(21.dp)) {

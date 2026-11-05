@@ -16,6 +16,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,6 +46,19 @@ private val Tabs = listOf(
 @Composable
 fun StreakGuardNav(container: AppContainer) {
     val navController = rememberNavController()
+    fun openTab(route: String) {
+        if (navController.currentDestination?.route == route) return
+        if (route == "today") {
+            // Today is the root. Restoring its saved stack can reopen Settings.
+            navController.popBackStack("today", inclusive = false, saveState = true)
+        } else {
+            navController.navigate(route) {
+                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
@@ -56,13 +70,7 @@ fun StreakGuardNav(container: AppContainer) {
                     NavigationBarItem(
                         selected = currentRoute == tab.route,
                         onClick = {
-                            navController.navigate(tab.route) {
-                                popUpTo(navController.graph.startDestinationId) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                            openTab(tab.route)
                         },
                         icon = {
                             if (tab.route == "today") Icon(painterResource(R.drawable.ic_flame), contentDescription = tab.label)
@@ -89,10 +97,16 @@ fun StreakGuardNav(container: AppContainer) {
         ) {
             composable("today") {
                 HomeScreen(container = container, onOpenPermissions = {
-                    navController.navigate("settings") { launchSingleTop = true }
+                    openTab("settings")
+                    navController.currentBackStackEntry?.savedStateHandle?.set("review_permissions", true)
                 })
             }
-            composable("settings") { SettingsScreen(container = container) }
+            composable("settings") { entry ->
+                val reviewPermissions by entry.savedStateHandle
+                    .getStateFlow("review_permissions", false).collectAsState()
+                SettingsScreen(container = container, reviewPermissions = reviewPermissions,
+                    onPermissionsShown = { entry.savedStateHandle["review_permissions"] = false })
+            }
         }
     }
 }

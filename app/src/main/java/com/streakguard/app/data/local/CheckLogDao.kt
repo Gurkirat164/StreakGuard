@@ -14,6 +14,9 @@ interface CheckLogDao {
     @Query("DELETE FROM check_log")
     suspend fun deleteAll()
 
+    @Query("DELETE FROM check_log WHERE platformId = :platformId")
+    suspend fun deleteForPlatform(platformId: String)
+
     @Query("SELECT * FROM check_log ORDER BY checkedAtEpoch DESC LIMIT :limit")
     fun getRecent(limit: Int): Flow<List<CheckLog>>
 

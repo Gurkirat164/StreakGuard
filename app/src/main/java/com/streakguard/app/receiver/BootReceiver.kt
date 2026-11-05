@@ -29,6 +29,9 @@ class BootReceiver : BroadcastReceiver() {
                 app.container.alarmScheduler.scheduleMidnightRefresh()
                 if (intent.action != Intent.ACTION_TIMEZONE_CHANGED) app.container.challengeAlarm.restore()
                 app.container.syncScheduler.schedule(app.container.settingsStore.syncInterval.first())
+                if (app.container.settingsStore.usernameAccount.first().status == com.streakguard.app.domain.UsernameStatus.PENDING) {
+                    app.container.usernameValidationScheduler.enqueue()
+                }
             } finally {
                 pending.finish()
             }

@@ -167,6 +167,21 @@ class NotificationHelper(private val context: Context) {
     fun cancelFailure() { manager.cancel(NOTIF_FAILURE)
         Diagnostics.log(DiagnosticEvent.NOTIFICATION_CANCELLED, "kind" to "failure") }
 
+    fun notifyInvalidUsername(haptics: Boolean) {
+        if (!canPost("invalid_username")) return
+        val open = PendingIntent.getActivity(context, NOTIF_USERNAME,
+            Intent(context, com.streakguard.app.ui.MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val message = "Your saved LeetCode username wasn't found. Open StreakGuard and correct it in Settings."
+        val channel = vibrationChannel("username_validation", "Username validation", NotificationManager.IMPORTANCE_DEFAULT, haptics)
+        post(NOTIF_USERNAME, NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_notification).setContentTitle("LeetCode username not valid")
+            .setContentText(message).setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentIntent(open).setAutoCancel(true).build(), "invalid_username")
+    }
+
+    fun cancelInvalidUsername() { manager.cancel(NOTIF_USERNAME) }
+
     fun cancelReminders(platformId: String) {
         manager.cancel(NOTIF_MISSED_BASE + platformId.hashCode().and(0xFFF))
         Diagnostics.log(DiagnosticEvent.NOTIFICATION_CANCELLED, "kind" to "reminder")
@@ -232,5 +247,6 @@ class NotificationHelper(private val context: Context) {
         private const val FAILURE_CHANNEL = "connection_issues"
         private const val ALARM_CHANNEL = "streakguard_alarm"
         private const val NOTIF_FAILURE = 9998
+        private const val NOTIF_USERNAME = 9997
     }
 }

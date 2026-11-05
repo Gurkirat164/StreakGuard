@@ -44,7 +44,7 @@ matches the active username. Today can reuse the most recent streak across days.
 | `verified_username_<platformId>` | Empty | Username confirmed by profile test |
 | `checked_username_<platformId>` | Empty | Username associated with cached checks |
 | `reminders_enabled` | `true` | Scheduled reminder enable switch |
-| `haptics_enabled` | `true` | Later-tier vibration preference |
+| `haptics_enabled` | `true` | Vibration for all reminder tiers, test notifications, and connection-failure notices |
 | `sync_on_open` | `true` | Refresh on activity start |
 | `sync_interval` | `15` | Periodic sync minutes: 15, 30, or 60 |
 | `completed_day_<platform>_<username>` | absent | Last confirmed solved UTC day for this account; expired markers do not suppress a new day |
@@ -54,13 +54,24 @@ matches the active username. Today can reuse the most recent streak across days.
 | `alarms_enabled` | `false` | Ringing preference; Settings cannot enable it while the hard feature gate is false |
 | `battery_prompts_suppressed` | `false` | Permanently suppress automatic battery prompts; manual requests remain available |
 | `battery_request_attempted` | `false` | Initial native battery request was attempted; later visits use the single app reminder |
-| `onboarding_done` | `false` | First-install onboarding completion |
+| `permission_setup_complete` | `false` | Native notification and exact-alarm request flow completed |
+| `username_status` | `VALID` for legacy installs | LeetCode profile state: `PENDING`, `VALID`, or `INVALID`; pending/invalid accounts have checks disabled |
+| `username_revision` | Empty | Random revision changed on each save; rejects stale deferred validation results |
 
 The former `check_hour` / `check_minute` daily-time setting is no longer used.
 There is no current "confirm when done" setting. Legacy `reminder_hours` values are read as minutes without shifting delivery times; saving custom times writes `reminder_minutes` and removes the legacy key. Malformed settings fall back to the defaults. The ringing toggle is present but disabled pending approval.
 
 ## Durable scheduling state
 
+- `username_status` stores `PENDING`, `VALID`, or `INVALID` for LeetCode;
+  `username_revision` changes on every save. Deferred results apply only to the
+  same pending account revision. Existing installations without these keys keep
+  their prior behavior until their next username save. A username save resets
+  LeetCode completion markers, checked/verified-account state, and cached history.
+- WorkManager's unique `username_validation` work waits for a connected network,
+  retries unavailable servers, validates pending profiles, and refreshes account
+  data. Pending validation is also recovered on app open and reboot. Deleting
+  local data cancels this work and clears its account state.
 - SharedPreferences `reminder_delivery`: delivered keys, finished attempts, and
   continuous-outage notice state. Delivery keys include UTC day, tier, and username.
 - SharedPreferences `reminder_retries`: pending retry day, attempt, timestamp, and
@@ -74,7 +85,7 @@ There is no current "confirm when done" setting. Legacy `reminder_hours` values 
 
 Settings > Others > Delete all your data clears saved preferences and Room history,
 notifications, delivery/outage state, pending reminder retries, and ringing state.
-The onboarding-complete flag is retained as true. Countdown work is cancelled and
+The permission-setup-complete flag is retained as true. Countdown work is cancelled and
 periodic sync is re-established at its default interval; the empty username prevents
 platform checks until configured again. The LeetCode account is unaffected.
 Deletion is serialized with checks to prevent an in-flight fetch restoring history.

@@ -13,8 +13,8 @@ Source root: `app/src/main/java/com/streakguard/app/`.
 | Package | Responsibility |
 |---------|----------------|
 | `diagnostics/` | Sanitized event collection, segmented rolling storage, access policy, retention worker, and report export/delivery |
-| `ui/` | Today and Settings navigation, view models, onboarding, splash, theme |
-| `domain/` | `DailyCheckOrchestrator`: checks, cache preservation, outage recovery, deletion |
+| `ui/` | Today and Settings navigation, view models, native permission setup, splash, theme |
+| `domain/` | `DailyCheckOrchestrator`: checks, cache preservation, outage recovery, deletion; `UsernameManager`: profile validation and account revisions |
 | `platform/` | `StreakPlatform`, registry, LeetCode API implementation |
 | `data/local/` | Room database and check history |
 | `data/prefs/` | DataStore settings |
@@ -68,6 +68,21 @@ ringing state except on timezone-change broadcasts. Disabled ringing restoration
 clears any pending occurrence.
 
 ## State and deletion
+
+`UsernameManager` checks profiles before saving. A missing profile leaves the
+current account intact; an unavailable response saves a pending account with
+checks disabled. `DailyCheckOrchestrator.changeUsername()` serializes account
+replacement with checks and clears LeetCode history, completion markers, delivery
+state, notifications, and inactive ringing state. `UsernameValidationWorker` uses
+unique connected-network work with exponential backoff to resolve pending profiles
+and refresh data. Results apply only to the matching pending account revision;
+confirmed invalid results post a single invalid-username notification. Pending
+work is recovered on app open and reboot.
+
+`StartupPermissions` runs notification and exact-alarm requests before the battery
+host. It records completion after returning from Android's screens even if access
+was denied. Today and Settings share `LeetCodeUsernameDialog` and its view model.
+Today's permission action selects Settings and consumes a one-time section jump.
 
 Room holds check history; DataStore holds settings. SharedPreferences persist
 reminder deliveries/outages, pending reminder retries, and ringing occurrences.

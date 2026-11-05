@@ -7,6 +7,23 @@ No automatic report upload is configured. See [Debug diagnostics](diagnostics.md
 
 ## Countdown reminders
 
+- Today prioritizes the missing-permissions warning. Once notification and
+  exact-alarm access are granted, an empty LeetCode username shows a matching
+  **LeetCode username needed** warning. **Add username** opens the same username
+  dialog as Settings over Today, without changing tabs. Saving updates the stored
+  username and removes the warning; Cancel leaves it available.
+- Username saves first check the public profile. A confirmed missing profile keeps
+  the dialog open and preserves the current account and cache. An unavailable
+  server allows a pending save. Account changes clear the old LeetCode history,
+  completion markers, reminder state, and displayed cache, then enqueue a fresh
+  check. Pending profiles are validated by durable, network-constrained work with
+  retries after connectivity returns. Confirmed invalid profiles disable checks
+  and post a single **LeetCode username not valid** notification. Notifications
+  require Android notification access. Account revisions prevent late validation
+  results from changing a newer account. Settings displays pending/invalid status.
+- **Direct Solve Daily** opens the official LeetCode Android app when available,
+  passing today's challenge link if the app supports it. Otherwise it opens the
+  app's main screen. If the app is unavailable, the challenge opens on the website.
 - Three stages before LeetCode's 00:00 UTC reset, defaulting to 6, 3, and 1 hours.
 - Edit opens the Notification times popup with a time picker for each stage. Choose exact UTC clock times to the minute, after 00:00 and before the next reset, in stage order and more than 30 minutes apart. Save commits and re-arms them; Cancel leaves the schedule unchanged. Existing hour-based settings retain their original times.
 - AlarmManager schedules the stages, using exact alarms when permitted and an
@@ -56,14 +73,14 @@ No automatic report upload is configured. See [Debug diagnostics](diagnostics.md
   and sync-on-open toggle; actions for missing notification/exact-alarm access
   and battery exemption (the Permissions module hides when all are granted);
   test notification; local-data deletion; version and privacy link.
-- Battery approval uses Android's native dialog after onboarding. Later opens
+- Battery approval uses Android's native dialog after the native permission requests. Later opens
   show one reminder while the exemption is missing, until granted or suppressed
   with “Don't show again”. See [Battery reminder prompts](battery-reminder-prompts.md).
 - Settings switches save automatically; reminder-time drafts require Save. Changing username or reminder times re-arms reminders;
   disabling reminders cancels reminder work/retries. Silent sync is separate.
 - Local-data deletion resets preferences/history and notification/delivery/alarm
   state, cancels countdown work, and restores the default periodic sync interval.
-  It does not change the LeetCode account or replay first-install onboarding.
+  It does not change the LeetCode account or replay first-install permission requests.
 - The former LeetCode detail screen and navigation entry have been removed.
 
 ## Time display

@@ -66,7 +66,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                         container.settingsStore.checkedUsername(platform.id),
                         container.database.checkLogDao().getRecent(1),
                         container.settingsStore.use24HourTime,
-                    ) { _, _, _, _ -> Unit }.collect { loadFromCache() }
+                        container.settingsStore.usernameAccount,
+                    ) { _, _, _, _, _ -> Unit }.collect { loadFromCache(); errorMessage = null }
                 }
             }
         }
@@ -130,8 +131,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 // Re-read what was just persisted: single source of truth.
                 loadFromCache()
                 when {
-                    results.isEmpty() ->
-                        errorMessage = "Add your username in Settings to start checking."
+                    results.isEmpty() -> {
+                        val account = container.settingsStore.usernameAccount.first()
+                        errorMessage = when (account.status) {
+                            com.streakguard.app.domain.UsernameStatus.PENDING -> "Username saved. Waiting for LeetCode to verify it when online."
+                            com.streakguard.app.domain.UsernameStatus.INVALID -> "Your LeetCode username wasn't found. Update it in Settings."
+                            else -> "Add your LeetCode username to start checking."
+                        }
+                    }
                     results.all { it.completed == null } ->
                         errorMessage = "Couldn't reach the platform. Check your connection and username."
                 }
