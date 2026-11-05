@@ -1,7 +1,7 @@
 # Overview
 
 StreakGuard is an Android app written in Kotlin with Jetpack Compose, package
-`com.streakguard.app`. The current version is **0.4.5**, Android version code **13**.
+`com.streakguard.app`. The current version is **0.4.7**, Android version code **15**.
 
 It checks LeetCode's Problem of the Day using your public username. Three reminder
 stages default to 6, 3, and 1 hours before the **00:00 UTC** reset. A confirmed
@@ -13,6 +13,16 @@ and a countdown. Silent refreshes run periodically (15 minutes by default), on
 app open when enabled, and at UTC midnight. Settings provides username validation,
 custom reminder times, 12/24-hour format, display timezone, haptics, the disabled alarm switch, sync preferences, permission shortcuts,
 a test notification, and local-data deletion. These are the only two main screens.
+
+On first launch, native notification and exact-alarm requests precede the battery
+exemption request. Today links missing permissions directly to Settings and offers
+an Add username dialog once those permissions are granted. Username saves validate
+the public profile; offline saves remain pending until network-backed validation
+finishes. Confirmed invalid profiles cannot run checks. Changing accounts clears
+the previous account's cached results and reminder state.
+
+Today's Direct Solve Daily action prefers the official LeetCode Android app,
+falling back to the website. Scheduled notifications open the challenge URL.
 
 Checks run on the device without a StreakGuard account or server. Requests to
 LeetCode include the public username. Completion means a recent accepted submission

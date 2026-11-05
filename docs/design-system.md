@@ -62,13 +62,18 @@ It does not use the shared palette for every surface.
 
 Settings modules include LeetCode Connection, Streak Reminders, Sync Interval,
 a conditional Permissions block, and Others. The permission block lists only
-missing notification/exact-alarm access. The reminder timezone selector remains
+missing notification/exact-alarm access and battery exemption. Each granted row
+disappears; the module hides when all three are granted. The reminder timezone selector remains
 inside Streak Reminders, and reminder times keep time and timezone on one line.
 Alarm Settings has a bold outlined clock icon, OFF badge, disabled ringing toggle, and availability note. A compact 12 hr / 24 hr segmented control is first under Others, with the same 40 dp icon tile and text alignment as adjacent action rows. Reminder clock values are bold in their tier colors; timezone suffixes stay regular in `#94A3B8`.
 
 The custom notification-time popup shares the Streak Reminders icon, 16 dp card corners, dark inset rows, and monospaced bold time values. Cancel and Save have equal widths and 36 dp visible heights. It opens native time pickers. The shared screen background extends through the version/privacy footer. A separate timezone block remains pending; see [TODO.md](../TODO.md).
 
 Bundled font/icon licences and asset-source notes live in `res/raw/`.
+Today prioritizes the missing-permission warning over the missing-username warning.
+Review permissions selects Settings at the Permissions section; Add username opens
+the shared username dialog over Today. Pending and invalid profile states are
+shown in Settings. Startup permission screens are owned by Android.
 MainActivity configures edge-to-edge with AndroidX and light system icons.
 The root Scaffold owns safe-drawing padding and consumes it before screen content;
 the navigation bar owns its bottom insets. Splash content uses safe-drawing padding.

@@ -11,7 +11,7 @@
 | Java/JVM target | 17 |
 | Android compile / target SDK | 37 / 37 |
 | Minimum Android SDK | 26 (Android 8.0) |
-| App version | 0.4.5 (`versionCode` 13) |
+| App version | 0.4.7 (`versionCode` 15) |
 
 Use JDK 17 and an Android Studio version compatible with the configured Android
 Gradle Plugin. Install Android SDK platform 37 and let Gradle resolve dependencies.
@@ -43,6 +43,23 @@ On macOS/Linux use `./gradlew` instead. An unsigned release bundle can be built
 with `bundleRelease`; a distributable release must be signed.
 
 ## Assets and release notes
+
+### Current repository validation (2026-11-05)
+
+For version **0.4.7** (`versionCode` **15**), `testDebugUnitTest`, `assembleDebug`,
+and `lintDebug` completed successfully using JBR 21.0.11. Gradle reused up-to-date
+outputs; the unit-test reports contain **66 tests, zero failures, and zero errors**.
+Lint reports **zero errors, 27 warnings, and one hint**. Local Markdown links were
+also checked for missing targets.
+
+The username tests cover invalid-profile rejection, cache reset on account save,
+offline pending validation, recovery, and stale-revision rejection. Profile-response
+and Today-warning tests are included. This validation did not run a device/emulator;
+the new username dialogs, LeetCode app-opening fallback, and startup permission
+navigation still need device checks. Earlier device results below apply to the
+versions and flows recorded at the time. Ringing remains disabled.
+
+### Release configuration
 
 - Fonts and the bundled alarm sound are tracked under `app/src/main/res/`.
   A normal checkout should include them; no manual font-copy step is required.

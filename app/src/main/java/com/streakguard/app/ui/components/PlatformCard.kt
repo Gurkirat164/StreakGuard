@@ -1,6 +1,9 @@
 package com.streakguard.app.ui.components
 
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -402,8 +405,7 @@ fun PlatformCard(
                 )
                 Button(
                     onClick = {
-                        val url = platform.challengeUrl ?: "https://leetcode.com"
-                        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+                        openDailyChallenge(context, platform.challengeUrl)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -495,6 +497,31 @@ fun PlatformCard(
                 }
             }
         }
+    }
+}
+
+private fun openDailyChallenge(context: Context, challengeUrl: String?) {
+    val url = challengeUrl ?: "https://leetcode.com/problemset/"
+    val leetCodePackage = "com.leetcode.android"
+    val appLink = Intent(Intent.ACTION_VIEW, url.toUri()).setPackage(leetCodePackage)
+
+    fun launch(intent: Intent): Boolean = try {
+        context.startActivity(intent)
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
+    } catch (_: SecurityException) {
+        false
+    }
+
+    if (appLink.resolveActivity(context.packageManager) != null && launch(appLink)) return
+
+    // Some app versions cannot handle challenge links; still open the installed app.
+    val app = context.packageManager.getLaunchIntentForPackage(leetCodePackage)
+    if (app != null && launch(app)) return
+
+    if (!launch(Intent(Intent.ACTION_VIEW, url.toUri()))) {
+        Toast.makeText(context, "No browser available to open LeetCode.", Toast.LENGTH_LONG).show()
     }
 }
 

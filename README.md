@@ -3,11 +3,14 @@
 StreakGuard is an Android app that checks LeetCode's Problem of the Day (POTD)
 and reminds you before the daily reset when it is still unsolved.
 
-Current app version: **0.4.5** (`versionCode` **13**).
+Current app version: **0.4.7** (`versionCode` **15**).
 
 ## How it works
 
-1. Enter your public LeetCode username in Settings and use **Test Connection** to verify it.
+1. Enter your public LeetCode username through Today's **Add username** warning
+   or Settings. Saving checks the public profile; offline saves remain pending
+   until a network-backed validation can finish. **Test Connection** is also
+   available in Settings.
 2. Reminder tiers default to **6, 3, and 1 hours before 00:00 UTC**. Use **Edit** to
    set three exact UTC clock times, including minutes, in the Notification times popup. Keep them in stage order and more than 30 minutes apart.
 3. At each tier, the app fetches the daily challenge and checks recent accepted
@@ -21,7 +24,12 @@ open by default, and at UTC midnight. Background timing depends on Android's
 scheduling and battery restrictions. Cached status appears while fresh data loads.
 
 No StreakGuard server, login, password, or API key is required. Checks run on the
-phone and send your public username to LeetCode. See the [privacy policy](Policies/privacy-policy.html).
+phone and send your public username to LeetCode. See the [privacy policy](https://gurkirat164.github.io/StreakGuard/Policies/).
+
+Today's **Direct Solve Daily** action opens the official LeetCode Android app
+when available, with a website fallback. Changing usernames clears the previous
+account's cached status and reminder state. A confirmed invalid profile keeps
+checks disabled until a valid username is saved.
 
 ## Timezones
 
@@ -40,8 +48,10 @@ Further timezone redesign work is deferred; see [TODO.md](TODO.md).
   Gradle Plugin. See [Building](docs/building.md) for tool versions and commands.
 - Open the project, sync Gradle, and build the debug APK at
   `app/build/outputs/apk/debug/app-debug.apk`.
-- Launch once, enter your username, and allow notifications and exact alarms.
-  Settings provides shortcuts for missing permissions and a test notification.
+- Launch once and complete Android's notification, exact-alarm, and battery
+  exemption requests. Enter your username in Today or Settings. Settings provides
+  shortcuts for missing permissions and a test notification; Today's permission
+  warning opens that section directly.
 - Settings switches save automatically; custom reminder times require **Save times**. Reminder and username changes re-arm the
   scheduled checks. Reboot, clock/timezone changes, and app updates also re-arm them.
 
@@ -65,7 +75,7 @@ three-ring limit are implemented but inactive; see [Features](docs/features.md).
 - `schedule/` and `receiver/` — UTC reminder tiers, workers, retries, and midnight refresh.
 - `notify/` — notification channels and the disabled ringing system.
 - `data/` — Room history, DataStore settings, and related state.
-- `ui/` — Today and Settings screens, onboarding, splash, and theme.
+- `ui/` — Today and Settings screens, native permission setup, splash, and theme.
 - [Documentation index](docs/README.md) — features, architecture, storage, design, build, and versioning.
 
 Paths after the first bullet are relative to the same application package directory.

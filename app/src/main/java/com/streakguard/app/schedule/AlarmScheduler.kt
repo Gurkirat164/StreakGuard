@@ -41,8 +41,15 @@ class AlarmScheduler(
     }
 
     /** Re-arm daily triggers and restore valid in-flight retries after reboot. */
-    suspend fun rescheduleFromSettings() {
-        cancelDaily()
+    suspend fun rescheduleFromSettings(reason: String = "settings_refresh") {
+        try { reschedule(reason) } catch (error: Exception) {
+            Diagnostics.failure("reschedule_$reason", error)
+            throw error
+        }
+    }
+
+    private suspend fun reschedule(reason: String) {
+        cancelDaily(reason)
         if (!settings.remindersEnabled.first() || !settings.enabled("leetcode").first() ||
             settings.username("leetcode").first().isBlank()) {
             (0..2).forEach(::cancelReminderRetry)
@@ -53,14 +60,17 @@ class AlarmScheduler(
         val completed = settings.isCompleted()
         settings.reminderMinutes.first().forEachIndexed { tier, minutes ->
             val trigger = ReminderSchedule.nextTrigger(now, minutes, completedToday = completed)
+            val traceId = java.util.UUID.randomUUID().toString()
             val intent = Intent(context, DailyCheckReceiver::class.java).apply {
+                putExtra("trace_id", traceId)
                 putExtra("reminder_tier", tier)
                 putExtra("platform_day", trigger.atZone(ZoneOffset.UTC).toLocalDate().toString())
                 putExtra("signature", signature)
             }
             val pending = PendingIntent.getBroadcast(context, REQUEST_TIER_BASE + tier, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            scheduleAt(trigger.toEpochMilli(), pending)
+            scheduleAt(trigger.toEpochMilli(), pending, traceId, REQUEST_TIER_BASE + tier,
+                trigger.atZone(ZoneOffset.UTC).toLocalDate().toString(), tier, 0)
             Diagnostics.log(DiagnosticEvent.REMINDER_SCHEDULED, "tier" to tier, "at" to trigger.toString(), "completed" to completed)
             val day = retryPrefs.getString("day_$tier", null)
             if (day != null) {
@@ -75,14 +85,26 @@ class AlarmScheduler(
         }
     }
 
-    private fun scheduleAt(at: Long, pending: PendingIntent) {
-        val manager = context.getSystemService(AlarmManager::class.java) ?: return
+    private fun scheduleAt(at: Long, pending: PendingIntent, traceId: String, slot: Int,
+                           day: String, tier: Int, attempt: Int) {
+        Diagnostics.checkpoint(traceId, "schedule_requested", "slot" to slot, "day" to day,
+            "tier" to tier, "attempt" to attempt, "at_ms" to at)
         try {
-            manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
-            Diagnostics.log(DiagnosticEvent.REMINDER_SCHEDULED, "at" to Instant.ofEpochMilli(at).toString(), "exact" to true)
-        } catch (_: SecurityException) {
-            manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
-            Diagnostics.log(DiagnosticEvent.REMINDER_SCHEDULED, "at" to Instant.ofEpochMilli(at).toString(), "exact" to false)
+            val manager = checkNotNull(context.getSystemService(AlarmManager::class.java))
+            var exact = true
+            try { manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending) }
+            catch (error: SecurityException) {
+                Diagnostics.critical(DiagnosticEvent.REMINDER_TRACE, "trace_id" to traceId,
+                    "stage" to "exact_fallback", "error_type" to error.javaClass.simpleName)
+                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+                exact = false
+            }
+            Diagnostics.checkpoint(traceId, "scheduled", "exact" to exact)
+            Diagnostics.log(DiagnosticEvent.REMINDER_SCHEDULED, "trace_id" to traceId,
+                "at" to Instant.ofEpochMilli(at).toString(), "exact" to exact)
+        } catch (error: Exception) {
+            Diagnostics.checkpoint(traceId, "schedule_failed", "error_type" to error.javaClass.simpleName)
+            throw error
         }
     }
 
@@ -94,8 +116,12 @@ class AlarmScheduler(
             putExtra("platform_day", day); putExtra("reminder_tier", tier)
             putExtra("attempt", attempt); putExtra("signature", signature)
         }
+        val traceId = java.util.UUID.randomUUID().toString()
+        intent.putExtra("trace_id", traceId)
+        Diagnostics.cancelSlot(REQUEST_REMINDER_RETRY + tier, "retry_replaced")
         scheduleAt(at, PendingIntent.getBroadcast(context, REQUEST_REMINDER_RETRY + tier, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE), traceId,
+            REQUEST_REMINDER_RETRY + tier, day, tier, attempt)
     }
 
     fun cancelReminderRetry(tier: Int) {
@@ -104,19 +130,25 @@ class AlarmScheduler(
             .remove("signature_$tier").commit()
         val pending = PendingIntent.getBroadcast(context, REQUEST_REMINDER_RETRY + tier,
             Intent(context, DailyCheckReceiver::class.java),
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE) ?: return
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
+        if (pending == null) {
+            Diagnostics.cancelSlot(REQUEST_REMINDER_RETRY + tier, "retry_pending_intent_absent")
+            return
+        }
         context.getSystemService(AlarmManager::class.java)?.cancel(pending)
         pending.cancel()
+        Diagnostics.cancelSlot(REQUEST_REMINDER_RETRY + tier, "retry_cancelled")
     }
 
     fun cancel() {
-        cancelDaily()
+        cancelDaily("reminders_cancelled")
         (0..2).forEach(::cancelReminderRetry)
     }
 
-    private fun cancelDaily() {
+    private fun cancelDaily(reason: String) {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
         for (code in listOf(REQUEST_CODE) + (REQUEST_TIER_BASE..REQUEST_TIER_BASE + 2)) {
+        Diagnostics.critical(DiagnosticEvent.REMINDER_TRACE, "stage" to "cancel_requested", "slot" to code, "reason" to reason)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             code,
@@ -125,6 +157,7 @@ class AlarmScheduler(
         )
         alarmManager.cancel(pendingIntent)
         pendingIntent.cancel()
+        Diagnostics.cancelSlot(code, reason)
         }
     }
 
@@ -134,6 +167,13 @@ class AlarmScheduler(
      * the cache without posting notifications and re-arms itself.
      */
     fun scheduleMidnightRefresh() {
+        try { scheduleMidnight() } catch (error: Exception) {
+            Diagnostics.failure("schedule_midnight", error)
+            throw error
+        }
+    }
+
+    private fun scheduleMidnight() {
         Diagnostics.log(DiagnosticEvent.REMINDER_SCHEDULED, "kind" to "midnight", "at" to Instant.ofEpochMilli(TimeUtils.nextUtcMidnightMillis()).toString())
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
         val pendingIntent = PendingIntent.getBroadcast(
@@ -162,6 +202,13 @@ class AlarmScheduler(
      * Used when the midnight refresh couldn't reach the network.
      */
     fun scheduleRefreshRetry(delayMinutes: Long, attempt: Int) {
+        try { scheduleRefreshRetryUnchecked(delayMinutes, attempt) } catch (error: Exception) {
+            Diagnostics.failure("schedule_midnight_retry", error)
+            throw error
+        }
+    }
+
+    private fun scheduleRefreshRetryUnchecked(delayMinutes: Long, attempt: Int) {
         Diagnostics.log(DiagnosticEvent.RETRY_SCHEDULED, "kind" to "midnight", "minutes" to delayMinutes, "attempt" to attempt)
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
         val intent = Intent(context, MidnightRefreshReceiver::class.java).apply {

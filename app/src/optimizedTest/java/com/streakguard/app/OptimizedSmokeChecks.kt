@@ -35,7 +35,7 @@ object OptimizedSmokeChecks {
                     c.alarmScheduler.signature())
                 c.syncScheduler.schedule(15)
                 val first = checker().runCheck(manual = false).single()
-                check(first.completed == true && fake.fetches == 1 && fake.streakFetches == 0)
+                check(first.completed == true && fake.fetches == 1 && fake.streakFetches == 1 && first.streak == 4)
                 check(settings.isCompleted())
                 check(c.database.checkLogDao().getForDate("leetcode", today)?.completed == true)
                 // New orchestrator + SettingsStore read durable completion, not an in-memory flag.

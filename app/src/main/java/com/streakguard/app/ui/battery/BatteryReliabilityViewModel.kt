@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.streakguard.app.data.prefs.SettingsStore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 internal class BatteryReliabilityViewModel(
@@ -28,17 +29,21 @@ internal class BatteryReliabilityViewModel(
     var error by mutableStateOf<String?>(null)
         private set
     private var suppressed = false
+    private var requestAttempted = false
     private var preferencesLoaded = false
     private var foreground = false
     private var ready = false
 
     init {
         viewModelScope.launch {
-            store.batteryPromptsSuppressed.collect { value ->
-                suppressed = value
+            combine(store.batteryPromptsSuppressed, store.batteryRequestAttempted) { suppression, attempted ->
+                suppression to attempted
+            }.collect { (suppression, attempted) ->
+                suppressed = suppression
+                requestAttempted = attempted
                 val firstLoad = !preferencesLoaded
                 preferencesLoaded = true
-                if (value) state = state.copy(prompt = BatteryPrompt.NONE)
+                if (suppression) state = state.copy(prompt = BatteryPrompt.NONE)
                 if (firstLoad) checkLaunch()
             }
         }
@@ -54,42 +59,52 @@ internal class BatteryReliabilityViewModel(
 
     private fun checkLaunch() {
         if (!foreground || !ready || !preferencesLoaded) return
-        if (!state.visitActive && !state.awaitingSettingsReturn) {
+        if (!state.visitActive && !state.awaitingRequestReturn) {
             dontShowAgain = false
             error = null
         }
-        state = state.foreground(status, suppressed)
+        state = state.foreground(status, suppressed, requestAttempted)
     }
 
     fun onBackground() { foreground = false; state = state.background() }
 
-    fun dismiss() = act(openSettings = null)
+    fun awaitOtherPermissionReturn() { state = state.request() }
 
-    fun openSettings(launch: () -> Boolean) = act(openSettings = launch)
+    fun dismiss() = act(launch = null)
 
-    private fun act(openSettings: (() -> Boolean)?) {
+    fun request(launch: () -> Boolean) = act(launch = launch)
+
+    private fun act(launch: (() -> Boolean)?) {
         if (saving) return
         viewModelScope.launch {
             saving = true
             error = null
             try {
-                if (state.prompt == BatteryPrompt.CONFIRMATION && dontShowAgain) {
+                // Manual requests from Settings never change automatic-prompt preferences.
+                if (state.prompt == BatteryPrompt.REMINDER && dontShowAgain) {
                     store.setBatteryPromptsSuppressed(true)
                     suppressed = true
                     state = state.copy(prompt = BatteryPrompt.NONE)
                 }
-                if (openSettings == null) {
+                if (launch == null) {
                     state = state.dismiss()
                 } else {
-                    state = state.openSettings()
-                    if (!openSettings()) {
-                        state = state.copy(awaitingSettingsReturn = false)
-                        error = "Couldn't open Android settings. Please try again."
+                    // Persist before opening Android so denying cannot repeat the first-run request.
+                    store.markBatteryRequestAttempted()
+                    requestAttempted = true
+                    state = state.request()
+                    if (!launch()) {
+                        state = state.copy(prompt = if (suppressed) BatteryPrompt.NONE else BatteryPrompt.REMINDER,
+                            awaitingRequestReturn = false)
+                        error = "Couldn't open Android's battery request. Try again from Settings → Permissions."
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
+                if (state.prompt == BatteryPrompt.NATIVE_REQUEST) {
+                    state = state.copy(prompt = BatteryPrompt.REMINDER)
+                }
                 error = "Couldn't save your preference. Please try again."
             } finally {
                 saving = false

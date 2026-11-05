@@ -16,7 +16,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.streakguard.app.StreakGuardApp
 import com.streakguard.app.di.AppContainer
 import com.streakguard.app.ui.home.HomeViewModel
-import com.streakguard.app.ui.onboarding.OnboardingDialog
+import com.streakguard.app.ui.permissions.StartupPermissions
 import com.streakguard.app.ui.splash.StaticSplashScreen
 import com.streakguard.app.ui.theme.StreakGuardTheme
 import kotlinx.coroutines.flow.first
@@ -37,9 +37,12 @@ class MainActivity : ComponentActivity() {
         // Keep the silent midnight refresh armed (cheap, idempotent).
         lifecycleScope.launch {
             runCatching { container.alarmScheduler.scheduleMidnightRefresh() }
-            runCatching { container.alarmScheduler.rescheduleFromSettings() }
+            runCatching { container.alarmScheduler.rescheduleFromSettings("app_open") }
             runCatching { container.challengeAlarm.restore() }
             runCatching { container.syncScheduler.schedule(container.settingsStore.syncInterval.first()) }
+            if (container.settingsStore.usernameAccount.first().status == com.streakguard.app.domain.UsernameStatus.PENDING) {
+                container.usernameValidationScheduler.enqueue()
+            }
         }
 
         setContent {
@@ -51,10 +54,10 @@ class MainActivity : ComponentActivity() {
                 var splashDone by remember { mutableStateOf(false) }
                 splashScreen.setKeepOnScreenCondition { !splashDone }
 
-                var onboardingNeeded by remember { mutableStateOf<Boolean?>(null) }
+                var permissionsNeeded by remember { mutableStateOf<Boolean?>(null) }
                 LaunchedEffect(Unit) {
-                    onboardingNeeded =
-                        !runCatching { container.settingsStore.onboardingDone.first() }
+                    permissionsNeeded =
+                        !runCatching { container.settingsStore.permissionSetupComplete.first() }
                             .getOrDefault(true)
                 }
 
@@ -65,13 +68,13 @@ class MainActivity : ComponentActivity() {
                     )
                 } else {
                     com.streakguard.app.ui.battery.BatteryReliabilityHost(
-                        store = container.settingsStore, ready = onboardingNeeded == false,
+                        store = container.settingsStore, ready = permissionsNeeded == false,
                     ) {
                         StreakGuardNav(container)
-                        if (onboardingNeeded == true) {
-                            OnboardingDialog(
+                        if (permissionsNeeded == true) {
+                            StartupPermissions(
                                 container = container,
-                                onDone = { onboardingNeeded = false },
+                                onDone = { permissionsNeeded = false },
                             )
                         }
                     }
@@ -84,6 +87,20 @@ class MainActivity : ComponentActivity() {
         val container = (application as StreakGuardApp).container
         com.streakguard.app.diagnostics.Diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.APP_OPENED)
         container.diagnostics.log(com.streakguard.app.diagnostics.DiagnosticEvent.PERMISSIONS_SNAPSHOT, container.diagnostics.permissionFields())
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            container.diagnostics.captureRecoveryEvidence("app_open")
+        }
         ViewModelProvider(this, HomeViewModel.Factory(container))[HomeViewModel::class.java].refreshOnOpen()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        val diagnostics = (application as StreakGuardApp).container.diagnostics
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                diagnostics.critical(com.streakguard.app.diagnostics.DiagnosticEvent.RUNTIME_SNAPSHOT,
+                    diagnostics.permissionFields() + mapOf("reason" to "app_background"))
+            }.onFailure { com.streakguard.app.diagnostics.Diagnostics.failure("background_snapshot", it) }
+        }
     }
 }

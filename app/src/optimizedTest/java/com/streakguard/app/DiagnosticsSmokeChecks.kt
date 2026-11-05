@@ -12,7 +12,7 @@ object DiagnosticsSmokeChecks {
         val c = (context.applicationContext as StreakGuardApp).container
         val diagnostics = c.diagnostics
         c.settingsStore.setSyncOnOpen(false)
-        c.settingsStore.setOnboardingDone(true)
+        c.settingsStore.setPermissionSetupComplete(true)
         c.settingsStore.setUsername("leetcode", "private-diagnostic-handle")
         diagnostics.clear()
         diagnostics.log(DiagnosticEvent.API_FINISHED, mapOf("http_status" to 200, "api_response" to "secret-api-response"))

@@ -33,7 +33,8 @@ import com.streakguard.app.ui.theme.Primary
 internal data class BatterySettingsAccess(
     val status: BatteryRestrictionStatus,
     val error: String?,
-    val openSettings: () -> Unit,
+    val requestExemption: () -> Unit,
+    val awaitOtherPermissionReturn: () -> Unit,
 )
 
 internal val LocalBatterySettings = staticCompositionLocalOf<BatterySettingsAccess> {
@@ -62,18 +63,21 @@ internal fun BatteryReliabilityHost(store: SettingsStore, ready: Boolean, conten
         if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) vm.onForeground()
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
-    val openSettings = { vm.openSettings { openBatterySettings(context, vm.status) } }
-    CompositionLocalProvider(LocalBatterySettings provides BatterySettingsAccess(vm.status, vm.error, openSettings)) {
+    val requestExemption = { vm.request { requestBatteryExemption(context) } }
+    LaunchedEffect(ready, vm.state.prompt) {
+        if (ready && vm.state.prompt == BatteryPrompt.NATIVE_REQUEST) requestExemption()
+    }
+    CompositionLocalProvider(LocalBatterySettings provides BatterySettingsAccess(
+        vm.status, vm.error, requestExemption, vm::awaitOtherPermissionReturn)) {
         content()
-        if (ready && vm.state.prompt != BatteryPrompt.NONE && !vm.state.awaitingSettingsReturn) {
+        if (ready && vm.state.prompt == BatteryPrompt.REMINDER && !vm.state.awaitingRequestReturn) {
             BatteryReliabilityDialog(
-                confirmation = vm.state.prompt == BatteryPrompt.CONFIRMATION,
                 dontShowAgain = vm.dontShowAgain,
                 saving = vm.saving,
                 error = vm.error,
                 onDontShowAgain = { vm.dontShowAgain = it },
                 onDismiss = vm::dismiss,
-                onOpenSettings = openSettings,
+                onRequestExemption = requestExemption,
             )
         }
     }
@@ -81,13 +85,12 @@ internal fun BatteryReliabilityHost(store: SettingsStore, ready: Boolean, conten
 
 @Composable
 private fun BatteryReliabilityDialog(
-    confirmation: Boolean,
     dontShowAgain: Boolean,
     saving: Boolean,
     error: String?,
     onDontShowAgain: (Boolean) -> Unit,
     onDismiss: () -> Unit,
-    onOpenSettings: () -> Unit,
+    onRequestExemption: () -> Unit,
 ) {
     val windowSize = LocalWindowInfo.current.containerSize
     val maxHeight = with(LocalDensity.current) { windowSize.height.toDp() - 48.dp }.coerceAtLeast(160.dp)
@@ -104,42 +107,38 @@ private fun BatteryReliabilityDialog(
                     Icon(painterResource(R.drawable.ic_settings_notifications_active), null,
                         tint = Primary, modifier = Modifier.padding(top = 2.dp).size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(if (confirmation) "Leave battery settings unchanged?" else "Keep reminders reliable",
+                    Text("Allow background reminders",
                         color = SettingsText, fontFamily = SettingsCardFont,
                         fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss, enabled = !saving, modifier = Modifier.size(32.dp)) {
+                    IconButton(onClick = onDismiss, enabled = !saving, modifier = Modifier.size(48.dp)) {
                         Icon(painterResource(R.drawable.ic_settings_close), "Close battery reminder prompt",
                             tint = SettingsMuted, modifier = Modifier.size(18.dp))
                     }
                 }
-                Text(if (confirmation)
-                    "Battery restrictions may delay or stop your reminders. You can change this anytime in Settings → Permissions → Battery optimisation."
-                    else "Battery restrictions may delay or stop your reminders. Open battery settings and allow unrestricted background usage for StreakGuard.",
+                Text("Battery optimisation is still on for StreakGuard and may delay reminders. Tap Continue, then Allow in Android’s dialog to let reminders run in the background. You can also do this later in Settings → Permissions.",
                     color = SettingsMuted, fontFamily = SettingsCardFont, fontSize = 14.sp, lineHeight = 21.sp)
-                if (confirmation) {
-                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                        .toggleable(dontShowAgain, enabled = !saving, role = Role.Checkbox, onValueChange = onDontShowAgain),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(dontShowAgain, onCheckedChange = null, enabled = !saving,
-                            colors = CheckboxDefaults.colors(checkedColor = Primary, uncheckedColor = SettingsMuted))
-                        Spacer(Modifier.width(10.dp))
-                        Text("Don’t show again", color = SettingsText, fontFamily = SettingsCardFont, fontSize = 12.sp)
-                    }
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .toggleable(dontShowAgain, enabled = !saving, role = Role.Checkbox, onValueChange = onDontShowAgain),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(dontShowAgain, onCheckedChange = null, enabled = !saving,
+                        colors = CheckboxDefaults.colors(checkedColor = Primary, uncheckedColor = SettingsMuted))
+                    Spacer(Modifier.width(10.dp))
+                    Text("Don’t show again", color = SettingsText, fontFamily = SettingsCardFont, fontSize = 12.sp)
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = onDismiss, enabled = !saving, modifier = Modifier.weight(1f),
+                    Button(onClick = onDismiss, enabled = !saving, modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                         shape = RoundedCornerShape(6.dp), border = BorderStroke(1.dp, SettingsBorder),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = SettingsButton, contentColor = SettingsText)) {
                         Text("Not now", fontFamily = SettingsCardFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
-                    Button(onClick = onOpenSettings, enabled = !saving, modifier = Modifier.weight(1f),
+                    Button(onClick = onRequestExemption, enabled = !saving, modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                         shape = RoundedCornerShape(6.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Primary, contentColor = SettingsThumb)) {
-                        Text("Open settings", fontFamily = SettingsCardFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("Continue", fontFamily = SettingsCardFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }

@@ -11,6 +11,7 @@ import com.streakguard.app.platform.leetcode.LeetCodeApi
 import com.streakguard.app.platform.leetcode.LeetCodePlatform
 import com.streakguard.app.schedule.AlarmScheduler
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
 
 /**
  * Manual dependency container (no DI framework). Everything is lazy so the
@@ -54,6 +55,16 @@ class AppContainer(context: Context,
 
     val alarmScheduler: AlarmScheduler by lazy { AlarmScheduler(appContext, settingsStore) }
     val syncScheduler by lazy { com.streakguard.app.schedule.SyncScheduler(appContext) }
+    val usernameValidationScheduler by lazy { com.streakguard.app.schedule.UsernameValidationScheduler(appContext) }
+    val usernameManager by lazy {
+        com.streakguard.app.domain.UsernameManager(
+            profileExists = leetCodeApi::profileExists,
+            saveAccount = { username, verified -> checkOrchestrator.changeUsername(username, verified) },
+            readAccount = { settingsStore.usernameAccount.first() },
+            completeValidation = { account, exists -> checkOrchestrator.finishUsernameValidation(account, exists) },
+            enqueueRefresh = usernameValidationScheduler::enqueue,
+        )
+    }
 
     val checkOrchestrator: DailyCheckOrchestrator by lazy {
         DailyCheckOrchestrator(
@@ -69,7 +80,7 @@ class AppContainer(context: Context,
 
     suspend fun stopCompletedDayWork() {
         // Keep tomorrow's daily alarms and the UTC-midnight refresh.
-        alarmScheduler.rescheduleFromSettings()
+        alarmScheduler.rescheduleFromSettings("day_completed")
         (0..2).forEach(alarmScheduler::cancelReminderRetry)
         notificationHelper.cancelReminders("leetcode")
         challengeAlarm.stopFor("leetcode", com.streakguard.app.util.TimeUtils.utcToday())

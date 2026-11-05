@@ -39,10 +39,25 @@ class LeetCodeApi(private val client: OkHttpClient) {
     /** null means unavailable; false means the server explicitly returned no matching profile. */
     suspend fun profileExists(username: String): Boolean? {
         val root = postGraphql("""{ matchedUser(username: "${safeUsername(username)}") { username } }""") ?: return null
-        if (root.has("errors")) return null
+        return parseProfileExists(root)
+    }
+
+    internal fun parseProfileExists(root: JSONObject): Boolean? {
+        val errors = root.optJSONArray("errors")
+        if (errors != null && errors.length() > 0) {
+            // LeetCode reports a missing profile as a handled GraphQL error, with HTTP 200.
+            val missingProfileOnly = (0 until errors.length()).all { index ->
+                val error = errors.optJSONObject(index)
+                error?.optString("message") == "That user does not exist." &&
+                    error.optJSONArray("path")?.optString(0) == "matchedUser"
+            }
+            return if (missingProfileOnly) false else null
+        }
         val data = root.optJSONObject("data") ?: return null
         if (!data.has("matchedUser")) return null
-        return data.optJSONObject("matchedUser")?.optString("username")?.isNotBlank() == true
+        if (data.isNull("matchedUser")) return false
+        val profile = data.optJSONObject("matchedUser") ?: return null
+        return if (profile.optString("username").isNotBlank()) true else null
     }
 
     private suspend fun postGraphql(query: String): JSONObject? = withContext(Dispatchers.IO) {

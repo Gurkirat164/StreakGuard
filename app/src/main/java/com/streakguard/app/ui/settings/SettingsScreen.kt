@@ -35,6 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.Font
@@ -55,6 +57,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private const val PRIVACY_POLICY_URL = "https://gurkirat164.github.io/StreakGuard/Policies/"
 // Settings V2 palette and typography from the approved Figma design.
@@ -87,10 +90,17 @@ internal val SettingsCardFont = FontFamily(
 )
 
 @Composable
-fun SettingsScreen(container: AppContainer) {
-    val vm: SettingsViewModel = viewModel(factory = remember { SettingsViewModel.Factory(container) })
+fun SettingsScreen(
+    container: AppContainer,
+    reviewPermissions: Boolean = false,
+    onPermissionsShown: () -> Unit = {},
+) {
     val context = LocalContext.current
-    val activity = LocalActivity.current
+    val activity = LocalActivity.current as androidx.activity.ComponentActivity
+    val vm: SettingsViewModel = viewModel(
+        viewModelStoreOwner = activity,
+        factory = remember { SettingsViewModel.Factory(container) },
+    )
     val battery = com.streakguard.app.ui.battery.LocalBatterySettings.current
     var editUsername by remember { mutableStateOf(false) }
     var editTiers by remember { mutableStateOf(false) }
@@ -105,6 +115,19 @@ fun SettingsScreen(container: AppContainer) {
     var exactGranted by remember { mutableStateOf(container.alarmScheduler.isExactAlarmAllowed()) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+    var permissionsTop by remember { mutableStateOf<Int?>(null) }
+    val missingPermissions = missingSettingsPermissions(notifGranted, exactGranted, !battery.status.optimisationEnabled)
+    LaunchedEffect(reviewPermissions, permissionsTop, scrollState.maxValue) {
+        if (reviewPermissions) {
+            if (missingPermissions.isEmpty()) {
+                onPermissionsShown()
+            } else if (permissionsTop != null && scrollState.maxValue != Int.MAX_VALUE) {
+                scrollState.scrollTo(permissionsTop!!)
+                onPermissionsShown()
+            }
+        }
+    }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -122,13 +145,15 @@ fun SettingsScreen(container: AppContainer) {
         notifGranted = container.notificationHelper.notificationsEnabled()
         // Android stops showing the permission dialog after a permanent denial.
         // Keep Grant useful by taking the user to the app's notification settings.
-        if (!granted && activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        if (!granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            battery.awaitOtherPermissionReturn()
             context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
         }
     }
     fun openNotificationSettings() {
+        battery.awaitOtherPermissionReturn()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -139,24 +164,18 @@ fun SettingsScreen(container: AppContainer) {
     }
     fun openAlarmSettings() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            battery.awaitOtherPermissionReturn()
             context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
                 Uri.parse("package:${context.packageName}")))
         }
     }
 
     if (editUsername) {
-        var handle by remember { mutableStateOf(vm.username) }
-        AlertDialog(
-            onDismissRequest = { editUsername = false },
-            title = { Text("LeetCode username") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Use your public handle. No password or cookies are needed.")
-                OutlinedTextField(handle, { handle = it }, label = { Text("Username") },
-                    prefix = { Text("@") }, singleLine = true)
-            } },
-            confirmButton = { TextButton(enabled = handle.trim().removePrefix("@").isNotBlank() && !handle.trim().any { it.isWhitespace() },
-                onClick = { vm.changeUsername(handle); editUsername = false }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { editUsername = false }) { Text("Cancel") } },
+        LeetCodeUsernameDialog(
+            username = vm.username, enabled = vm.initialized && !vm.isClearing,
+            saving = vm.isSavingUsername, error = vm.usernameSaveError, onEdit = vm::clearUsernameError,
+            onSave = { vm.changeUsername(it) { editUsername = false } },
+            onDismiss = { editUsername = false; vm.clearUsernameError() },
         )
     }
     if (editTiers) {
@@ -199,7 +218,7 @@ fun SettingsScreen(container: AppContainer) {
         "Asia/Kolkata" -> "IST"
         else -> DateTimeFormatter.ofPattern("z").withZone(zone).format(now)
     }
-    Column(Modifier.fillMaxSize().background(SettingsCanvas).verticalScroll(rememberScrollState())
+    Column(Modifier.fillMaxSize().background(SettingsCanvas).verticalScroll(scrollState)
         .padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Spacer(Modifier.height(0.dp))
         AppHeader()
@@ -218,7 +237,10 @@ fun SettingsScreen(container: AppContainer) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (vm.profileVerified) DesignIcon(R.drawable.ic_settings_check_circle, Secondary, 14)
                         Text(when { vm.isTesting -> "Verifying public profile…"; vm.profileVerified -> "Public Profile Synced";
-                            vm.username.isBlank() -> "No profile connected"; else -> "Profile not verified" },
+                            vm.username.isBlank() -> "No profile connected";
+                            vm.usernameStatus == com.streakguard.app.domain.UsernameStatus.PENDING -> "Verification pending — will retry online";
+                            vm.usernameStatus == com.streakguard.app.domain.UsernameStatus.INVALID -> "Username not found — update your username";
+                            else -> "Profile not verified" },
                             color = if (vm.profileVerified) Secondary else SettingsMuted, fontSize = 11.sp,
                             lineHeight = 16.sp, letterSpacing = 0.sp)
                     }
@@ -319,7 +341,7 @@ fun SettingsScreen(container: AppContainer) {
                     fontSize = 11.sp, lineHeight = 16.sp)
             }
         }
-        SettingsModule("Sync Interval", R.drawable.ic_settings_sync, "Every ${vm.syncInterval} min") {
+        SettingsModule("Sync Interval", R.drawable.ic_settings_sync, caption = "Every ${vm.syncInterval} min") {
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth().padding(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(15, 30, 60).forEach { minutes ->
@@ -338,12 +360,11 @@ fun SettingsScreen(container: AppContainer) {
             Spacer(Modifier.height(8.dp))
             ToggleRow("Sync when app opens", "Trigger instant Sync", vm.syncOnOpen, vm::onSyncOnOpenChange, vm.initialized)
         }
-        val missingPermissions = missingSettingsPermissions(notifGranted, exactGranted)
-        // Battery settings remain reachable even after all grants or permanent prompt suppression.
-        run {
+        if (missingPermissions.isNotEmpty()) {
             SettingsModule("Permissions", R.drawable.ic_settings_shield, contentSpacing = 20.5.dp,
+                modifier = Modifier.onGloballyPositioned { permissionsTop = it.positionInParent().y.roundToInt() },
                 headerFont = SettingsCardFont, headerBadge = {
-                    if (missingPermissions.isNotEmpty() || battery.status.restricted) PermissionActionBadge()
+                    PermissionActionBadge()
                 }) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     missingPermissions.forEach { permission ->
@@ -356,9 +377,9 @@ fun SettingsScreen(container: AppContainer) {
                                 "Exact alarms", "On-time reminders", R.drawable.ic_settings_alarm_on,
                                 SettingsAmber, "Enable", primaryAction = true, status = "DISABLED", statusColor = SettingsAmber,
                                 descriptionFont = PermissionDescriptionFont, onClick = ::openAlarmSettings)
+                            SettingsPermission.BATTERY -> BatteryPermissionCard(battery.requestExemption)
                         }
                     }
-                    BatteryPermissionCard(battery.status.restricted, battery.openSettings)
                     battery.error?.let { Text(it, color = Tertiary, fontSize = 12.sp) }
                 }
             }
@@ -390,11 +411,12 @@ fun SettingsScreen(container: AppContainer) {
 }
 
 @Composable
-private fun SettingsModule(title: String, icon: Int, caption: String? = null,
+private fun SettingsModule(title: String, icon: Int, modifier: Modifier = Modifier,
+                           caption: String? = null,
                            contentSpacing: Dp = 16.dp, headerBadge: (@Composable () -> Unit)? = null,
                            headerFont: FontFamily = GeistFontFamily,
                            content: @Composable ColumnScope.() -> Unit) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+    Card(modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, if (icon == R.drawable.ic_settings_sync) SettingsButton else SettingsBorder),
         colors = CardDefaults.cardColors(containerColor = SettingsCard)) {
         Column(Modifier.padding(21.dp)) {
@@ -422,10 +444,10 @@ private fun PermissionActionBadge() {
     }
 }
 
-/** Approved battery card 2: compact action, status below the title, warning below the row. */
+/** Missing exemption only; the action opens Android's approval dialog. */
 @Composable
-private fun BatteryPermissionCard(restricted: Boolean, onOpenSettings: () -> Unit) {
-    val color = if (restricted) SettingsAmber else SettingsSafe
+private fun BatteryPermissionCard(onRequestExemption: () -> Unit) {
+    val color = SettingsAmber
     Column(Modifier.fillMaxWidth().heightIn(min = 112.dp)
         .background(Sunken, RoundedCornerShape(12.dp))
         .border(1.dp, SettingsInset, RoundedCornerShape(12.dp)).padding(14.dp),
@@ -439,19 +461,19 @@ private fun BatteryPermissionCard(restricted: Boolean, onOpenSettings: () -> Uni
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Battery optimisation", color = Color.White, fontFamily = SettingsCardFont,
                     fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 21.sp, letterSpacing = (-.35).sp)
-                Text(if (restricted) "RESTRICTED" else "UNRESTRICTED", color = color,
+                Text("RESTRICTED", color = color,
                     fontFamily = CountdownFont, fontWeight = FontWeight.Bold, fontSize = 10.sp, lineHeight = 15.sp,
                     modifier = Modifier.background(color.copy(alpha = .15f), RoundedCornerShape(4.dp))
                         .padding(horizontal = 5.dp))
             }
-            Box(Modifier.background(Primary, RoundedCornerShape(8.dp))
-                .clickable(role = Role.Button, onClick = onOpenSettings)
+            Box(Modifier.heightIn(min = 48.dp).background(Primary, RoundedCornerShape(8.dp))
+                .clickable(role = Role.Button, onClick = onRequestExemption)
                 .padding(horizontal = 14.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
-                Text("Settings", color = SettingsThumb, fontFamily = SettingsCardFont,
+                Text("Allow", color = SettingsThumb, fontFamily = SettingsCardFont,
                     fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 18.sp, letterSpacing = (-.12).sp)
             }
         }
-        Text(if (restricted) "Battery restrictions may delay\nor stop reminders." else "Unrestricted background usage is allowed.",
+        Text("Battery restrictions may delay\nor stop reminders.",
             color = SettingsTelemetry, fontFamily = PermissionDescriptionFont, fontSize = 11.sp, lineHeight = 15.sp)
     }
 }

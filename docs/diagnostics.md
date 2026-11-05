@@ -1,5 +1,8 @@
 # Debug diagnostics
 
+For the current reminder delivery ledger, process-exit evidence, and missed-reminder
+collection steps, see [Investigating missing reminders](notification-diagnostics.md).
+
 Settings shows **Debug** directly below Privacy Policy. Logs are local and enabled
 for the current rollout. Share and Clear both require confirmation. Sharing opens
 Android's chooser; the user chooses an app and recipient. No upload server, remote

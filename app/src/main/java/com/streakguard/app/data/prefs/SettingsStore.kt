@@ -22,6 +22,42 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
  * the registry get their own settings automatically.
  */
 class SettingsStore(private val context: Context) {
+    val usernameAccount = context.dataStore.data.map {
+        com.streakguard.app.domain.UsernameAccount(
+            it[stringPreferencesKey("username_leetcode")] ?: "",
+            it[stringPreferencesKey("username_revision")] ?: "",
+            runCatching { com.streakguard.app.domain.UsernameStatus.valueOf(
+                it[stringPreferencesKey("username_status")] ?: "VALID") }.getOrDefault(com.streakguard.app.domain.UsernameStatus.PENDING),
+        )
+    }.distinctUntilChanged()
+
+    suspend fun saveLeetCodeAccount(username: String, verified: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs.asMap().keys.filter { it.name.startsWith("completed_day_leetcode_") }.forEach { prefs.remove(it) }
+            prefs[stringPreferencesKey("username_leetcode")] = username
+            prefs[stringPreferencesKey("username_revision")] = java.util.UUID.randomUUID().toString()
+            prefs[stringPreferencesKey("username_status")] = if (verified) "VALID" else "PENDING"
+            prefs[stringPreferencesKey("verified_username_leetcode")] = if (verified) username else ""
+            prefs[stringPreferencesKey("checked_username_leetcode")] = ""
+            prefs[booleanPreferencesKey("enabled_leetcode")] = verified
+        }
+    }
+
+    suspend fun finishUsernameValidation(account: com.streakguard.app.domain.UsernameAccount, exists: Boolean): Boolean {
+        var applied = false
+        context.dataStore.edit {
+            if (it[stringPreferencesKey("username_leetcode")] == account.username &&
+                it[stringPreferencesKey("username_revision")] == account.revision &&
+                it[stringPreferencesKey("username_status")] == "PENDING") {
+                it[stringPreferencesKey("username_status")] = if (exists) "VALID" else "INVALID"
+                it[stringPreferencesKey("verified_username_leetcode")] = if (exists) account.username else ""
+                it[booleanPreferencesKey("enabled_leetcode")] = exists
+                applied = true
+            }
+        }
+        return applied
+    }
+
     /** Only non-identifying values may cross into diagnostics. Never expose usernames or raw preferences. */
     val diagnosticSettings = context.dataStore.data.map { prefs ->
         mapOf<String, Any?>(
@@ -62,6 +98,9 @@ class SettingsStore(private val context: Context) {
     val batteryPromptsSuppressed = context.dataStore.data.map {
         it[booleanPreferencesKey("battery_prompts_suppressed")] ?: false
     }.distinctUntilChanged()
+    val batteryRequestAttempted = context.dataStore.data.map {
+        it[booleanPreferencesKey("battery_request_attempted")] ?: false
+    }.distinctUntilChanged()
     val reminderMinutes = context.dataStore.data.map { prefs ->
         com.streakguard.app.schedule.ReminderSchedule.fromStoredValues(
             prefs[stringPreferencesKey("reminder_minutes")], prefs[stringPreferencesKey("reminder_hours")])
@@ -82,6 +121,9 @@ class SettingsStore(private val context: Context) {
     suspend fun setAlarmsEnabled(value: Boolean) { context.dataStore.edit { it[booleanPreferencesKey("alarms_enabled")] = value } }
     suspend fun setBatteryPromptsSuppressed(value: Boolean) {
         context.dataStore.edit { it[booleanPreferencesKey("battery_prompts_suppressed")] = value }
+    }
+    suspend fun markBatteryRequestAttempted() {
+        context.dataStore.edit { it[booleanPreferencesKey("battery_request_attempted")] = true }
     }
     suspend fun setReminderMinutes(value: List<Int>) {
         require(com.streakguard.app.schedule.ReminderSchedule.valid(value))
@@ -121,22 +163,22 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { it[booleanPreferencesKey("enabled_$platformId")] = value }
     }
 
-    // --- First-launch onboarding ---
+    // --- Native permission setup ---
 
-    private val onboardingKey = booleanPreferencesKey("onboarding_done")
+    private val permissionSetupKey = booleanPreferencesKey("permission_setup_complete")
 
-    val onboardingDone: Flow<Boolean> =
-        context.dataStore.data.map { it[onboardingKey] ?: false }
+    val permissionSetupComplete: Flow<Boolean> =
+        context.dataStore.data.map { it[permissionSetupKey] ?: false }
 
-    suspend fun setOnboardingDone(value: Boolean) {
-        context.dataStore.edit { it[onboardingKey] = value }
+    suspend fun setPermissionSetupComplete(value: Boolean) {
+        context.dataStore.edit { it[permissionSetupKey] = value }
     }
 
-    /** Clear local preferences without replaying first-install onboarding. */
+    /** Clear local preferences without replaying first-install permission requests. */
     suspend fun clearUserData() {
         context.dataStore.edit {
             it.clear()
-            it[onboardingKey] = true
+            it[permissionSetupKey] = true
         }
     }
 }

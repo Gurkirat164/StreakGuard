@@ -39,23 +39,38 @@ class NotificationHelper(private val context: Context) {
 
     fun notificationsEnabled(): Boolean = manager.areNotificationsEnabled()
 
-    private fun canPost(kind: String): Boolean = notificationsEnabled().also {
-        if (!it) Diagnostics.log(DiagnosticEvent.NOTIFICATION_BLOCKED, "kind" to kind, "reason" to "permission_disabled")
+    private fun canPost(kind: String, traceId: String? = null): Boolean = notificationsEnabled().also {
+        if (!it) {
+            Diagnostics.checkpoint(traceId, "notification_blocked", "reason" to "permission_disabled")
+            Diagnostics.log(DiagnosticEvent.NOTIFICATION_BLOCKED, "trace_id" to traceId, "kind" to kind, "reason" to "permission_disabled")
+        }
     }
 
-    private fun post(id: Int, notification: android.app.Notification, kind: String) {
+    private fun post(id: Int, notification: android.app.Notification, kind: String, traceId: String? = null) {
         val channel = manager.getNotificationChannel(notification.channelId)
         if (channel?.importance == NotificationManager.IMPORTANCE_NONE) {
+            Diagnostics.checkpoint(traceId, "notification_blocked", "channel" to notification.channelId, "reason" to "channel_disabled")
             Diagnostics.log(DiagnosticEvent.NOTIFICATION_BLOCKED, "kind" to kind,
                 "channel" to notification.channelId, "reason" to "channel_disabled")
             return
         }
         try {
+            Diagnostics.checkpoint(traceId, "posting_attempted", "channel" to notification.channelId,
+                "notification_id" to id, "importance" to channel?.importance,
+                "sound_enabled" to (channel?.sound != null))
             manager.notify(id, notification)
+            Diagnostics.checkpoint(traceId, "notification_posted", "kind" to kind)
+            // An active system record confirms registration, never that the user saw a banner.
+            runCatching {
+                Diagnostics.critical(DiagnosticEvent.REMINDER_TRACE, "trace_id" to traceId,
+                    "stage" to "active_notification_snapshot", "notification_id" to id,
+                    "active_after_post" to manager.activeNotifications.any { it.id == id })
+            }.onFailure { Diagnostics.failure("active_notifications", it) }
             Diagnostics.log(DiagnosticEvent.NOTIFICATION_POSTED, "kind" to kind,
                 "channel" to notification.channelId, "importance" to channel?.importance,
                 "haptics" to channel?.shouldVibrate())
         } catch (error: RuntimeException) {
+            Diagnostics.checkpoint(traceId, "notification_failed", "error_type" to error.javaClass.simpleName)
             Diagnostics.log(DiagnosticEvent.NOTIFICATION_FAILED, "kind" to kind, "error_type" to error.javaClass.simpleName)
         }
     }
@@ -80,8 +95,9 @@ class NotificationHelper(private val context: Context) {
         challengeUrl: String,
         tier: Int,
         haptics: Boolean = true,
+        traceId: String? = null,
     ) {
-        if (!canPost("reminder")) return
+        if (!canPost("reminder", traceId)) return
         val channelId = tierChannel(tier, haptics)
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification)
@@ -94,7 +110,7 @@ class NotificationHelper(private val context: Context) {
                 if (haptics) NotificationCompat.PRIORITY_DEFAULT else NotificationCompat.PRIORITY_LOW
             } else NotificationCompat.PRIORITY_HIGH)
             .build()
-        post(NOTIF_MISSED_BASE + platformId.hashCode().and(0xFFF), notification, "reminder_tier_$tier")
+        post(NOTIF_MISSED_BASE + platformId.hashCode().and(0xFFF), notification, "reminder_tier_$tier", traceId)
     }
 
     private fun tierChannel(tier: Int, haptics: Boolean): String {
@@ -133,8 +149,8 @@ class NotificationHelper(private val context: Context) {
         post(NOTIF_TEST, notification, "test")
     }
 
-    fun notifyFailure(willRetry: Boolean, haptics: Boolean) {
-        if (!canPost("failure")) return
+    fun notifyFailure(willRetry: Boolean, haptics: Boolean, traceId: String? = null) {
+        if (!canPost("failure", traceId)) return
         val network = context.getSystemService(android.net.ConnectivityManager::class.java)
         val online = network.getNetworkCapabilities(network.activeNetwork)
             ?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
@@ -145,11 +161,26 @@ class NotificationHelper(private val context: Context) {
         post(NOTIF_FAILURE, NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification).setContentTitle("StreakGuard couldn't check")
             .setContentText(message).setStyle(NotificationCompat.BigTextStyle().bigText(message))
-            .setAutoCancel(true).build(), "failure")
+            .setAutoCancel(true).build(), "failure", traceId)
     }
 
     fun cancelFailure() { manager.cancel(NOTIF_FAILURE)
         Diagnostics.log(DiagnosticEvent.NOTIFICATION_CANCELLED, "kind" to "failure") }
+
+    fun notifyInvalidUsername(haptics: Boolean) {
+        if (!canPost("invalid_username")) return
+        val open = PendingIntent.getActivity(context, NOTIF_USERNAME,
+            Intent(context, com.streakguard.app.ui.MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val message = "Your saved LeetCode username wasn't found. Open StreakGuard and correct it in Settings."
+        val channel = vibrationChannel("username_validation", "Username validation", NotificationManager.IMPORTANCE_DEFAULT, haptics)
+        post(NOTIF_USERNAME, NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_notification).setContentTitle("LeetCode username not valid")
+            .setContentText(message).setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentIntent(open).setAutoCancel(true).build(), "invalid_username")
+    }
+
+    fun cancelInvalidUsername() { manager.cancel(NOTIF_USERNAME) }
 
     fun cancelReminders(platformId: String) {
         manager.cancel(NOTIF_MISSED_BASE + platformId.hashCode().and(0xFFF))
@@ -216,5 +247,6 @@ class NotificationHelper(private val context: Context) {
         private const val FAILURE_CHANNEL = "connection_issues"
         private const val ALARM_CHANNEL = "streakguard_alarm"
         private const val NOTIF_FAILURE = 9998
+        private const val NOTIF_USERNAME = 9997
     }
 }
